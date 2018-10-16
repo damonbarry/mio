@@ -31,6 +31,7 @@ use super::net::{UnixListener, UnixStream};
 /// This type is used with the `accept_overlapped` method on the
 /// `TcpListenerExt` trait to provide space for the overlapped I/O operation to
 /// fill in the socket addresses upon completion.
+#[allow(missing_debug_implementations)]
 #[repr(C)]
 pub struct AcceptAddrsBuf {
     // For AcceptEx we've got the restriction that the addresses passed in that
@@ -43,6 +44,7 @@ pub struct AcceptAddrsBuf {
 }
 
 /// The parsed return value of `AcceptAddrsBuf`.
+#[allow(missing_debug_implementations)]
 pub struct AcceptAddrs<'a> {
     local: LPSOCKADDR,
     local_len: c_int,
@@ -91,6 +93,7 @@ pub trait UnixStreamExt {
                               overlapped: *mut OVERLAPPED)
                               -> io::Result<Option<usize>>;
 
+    #[allow(missing_docs)]
     unsafe fn readv_overlapped(&self,
                               bufs: &mut [&mut IoVec],
                               overlapped: *mut OVERLAPPED)
@@ -551,8 +554,8 @@ type GetAcceptExSockaddrs = unsafe extern "system" fn(PVOID, DWORD, DWORD, DWORD
                                                       *mut LPSOCKADDR, LPINT);
 
 impl AcceptAddrsBuf {
-    // /// Creates a new blank buffer ready to be passed to a call to
-    // /// `accept_overlapped`.
+    /// Creates a new blank buffer ready to be passed to a call to
+    /// `accept_overlapped`.
     pub fn new() -> AcceptAddrsBuf {
         unsafe { mem::zeroed() }
     }
@@ -642,7 +645,7 @@ mod tests {
     use miow::{iocp::CompletionPort, Overlapped};
     use self::tempdir::TempDir;
 
-    use sys::windows::inner::{self, Socket, AcceptAddrsBuf, UnixListenerExt, UnixStreamExt};
+    use net::{self, Socket, AcceptAddrsBuf, UnixListenerExt, UnixStreamExt};
 
     macro_rules! t {
         ($e:expr) => (match $e {
@@ -660,13 +663,13 @@ mod tests {
     #[test]
     fn uds_read_overlapped() {
         let (_dir, addr) = t!(tmpdir());
-        let l = t!(inner::UnixListener::bind(&addr));
+        let l = t!(net::UnixListener::bind(&addr));
         let t = thread::spawn(move || {
             let mut a = t!(l.accept()).0;
             t!(a.write_all(&[1, 2, 3]));
         });
 
-        let s = t!(inner::UnixStream::connect(&addr));
+        let s = t!(net::UnixStream::connect(&addr));
 
         let cp = t!(CompletionPort::new(1));
         t!(cp.add_socket(1, &s));
@@ -688,7 +691,7 @@ mod tests {
     #[test]
     fn uds_write_overlapped() {
         let (_dir, addr) = t!(tmpdir());
-        let l = t!(inner::UnixListener::bind(&addr));
+        let l = t!(net::UnixListener::bind(&addr));
         let t = thread::spawn(move || {
             let mut a = t!(l.accept()).0;
             let mut b = [0; 10];
@@ -698,7 +701,7 @@ mod tests {
         });
 
         let cp = t!(CompletionPort::new(1));
-        let s = t!(inner::UnixStream::connect(&addr));
+        let s = t!(net::UnixStream::connect(&addr));
         t!(cp.add_socket(1, &s));
 
         let b = [1, 2, 3];
@@ -717,13 +720,13 @@ mod tests {
     #[test]
     fn uds_connect_overlapped() {
         let (_dir, addr_template) = t!(tmpdir());
-        let l = t!(inner::UnixListener::bind(&addr_template));
+        let l = t!(net::UnixListener::bind(&addr_template));
         let addr = t!(l.local_addr());
         let t = thread::spawn(move || {
             t!(l.accept());
         });
 
-        let socket = t!(inner::UnixStream::new());
+        let socket = t!(net::UnixStream::new());
         let cp = t!(CompletionPort::new(1));
         t!(cp.add_socket(1, &socket));
 
@@ -743,15 +746,15 @@ mod tests {
     #[test]
     fn uds_accept_overlapped() {
         let (_dir, addr) = t!(tmpdir());
-        let l = t!(inner::UnixListener::bind(&addr));
+        let l = t!(net::UnixListener::bind(&addr));
         let t = thread::spawn(move || {
-            let socket = t!(inner::UnixStream::connect(&addr));
+            let socket = t!(net::UnixStream::connect(&addr));
             (socket.local_addr().unwrap(), socket.peer_addr().unwrap())
         });
 
         let socket = t!(Socket::new());
         let socket = unsafe {
-            inner::UnixStream::from_raw_socket(socket.into_raw_socket())
+            net::UnixStream::from_raw_socket(socket.into_raw_socket())
         };
 
         let cp = t!(CompletionPort::new(1));

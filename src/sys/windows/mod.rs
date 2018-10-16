@@ -147,7 +147,6 @@ mod selector;
 mod uds;
 mod from_raw_arc;
 mod buffer_pool;
-mod inner;
 
 pub use self::selector::{Events, Selector, Overlapped, Binding};
 pub use self::uds::{UnixStream, UnixListener};

@@ -118,12 +118,14 @@ extern crate kernel32;
 extern crate log;
 
 mod listener;
+mod net;
 mod poll;
 mod stream;
 mod sys;
 
-pub use stream::UnixStream;
 pub use listener::UnixListener;
+pub use net::{AcceptAddrs, AcceptAddrsBuf, UnixListenerExt, UnixStreamExt};
+pub use stream::UnixStream;
 
 /// Windows-only extensions to the mio crate.
 ///
