@@ -45,7 +45,7 @@
 //! # extern crate mio;
 //! # extern crate mio_uds_windows;
 //! use mio::*;
-//! use mio_uds_windows::net::{UnixListener, UnixStream};
+//! use mio_uds_windows::{UnixListener, UnixStream};
 //!
 //! // Setup some tokens to allow us to identify which event is
 //! // for which socket.
@@ -117,10 +117,13 @@ extern crate kernel32;
 #[macro_use]
 extern crate log;
 
+mod listener;
 mod poll;
+mod stream;
 mod sys;
 
-pub mod net;
+pub use stream::UnixStream;
+pub use listener::UnixListener;
 
 /// Windows-only extensions to the mio crate.
 ///
