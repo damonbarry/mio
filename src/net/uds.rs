@@ -21,7 +21,7 @@ use poll::SelectorId;
 
 /*
  *
- * ===== TcpStream =====
+ * ===== UnixStream =====
  *
  */
 
@@ -32,16 +32,18 @@ use poll::SelectorId;
 /// # Examples
 ///
 /// ```
+/// # extern crate mio;
+/// # extern crate mio_uds_windows;
 /// # use std::net::TcpListener;
 /// # use std::error::Error;
 /// #
 /// # fn try_main() -> Result<(), Box<Error>> {
-/// #     let _listener = TcpListener::bind("127.0.0.1:34254")?;
+/// # let _listener = TcpListener::bind("127.0.0.1:34254")?;
 /// use mio::{Events, Ready, Poll, PollOpt, Token};
-/// use mio::net::TcpStream;
+/// use mio_uds_windows::net::UnixStream;
 /// use std::time::Duration;
 ///
-/// let stream = TcpStream::connect(&"127.0.0.1:34254".parse()?)?;
+/// let stream = UnixStream::connect(&"127.0.0.1:34254".parse()?)?;
 ///
 /// let poll = Poll::new()?;
 /// let mut events = Events::with_capacity(128);
@@ -60,26 +62,19 @@ use poll::SelectorId;
 /// #     try_main().unwrap();
 /// # }
 /// ```
-pub struct TcpStream {
-    sys: sys::TcpStream,
+pub struct UnixStream {
+    sys: sys::UnixStream,
     selector_id: SelectorId,
 }
 
 use std::net::Shutdown;
 
-// TODO: remove when fuchsia's set_nonblocking is fixed in libstd
-#[cfg(target_os = "fuchsia")]
-fn set_nonblocking(stream: &net::TcpStream) -> io::Result<()> {
-    sys::set_nonblock(
-        ::std::os::unix::io::AsRawFd::as_raw_fd(stream))
-}
-#[cfg(not(target_os = "fuchsia"))]
 fn set_nonblocking(stream: &net::TcpStream) -> io::Result<()> {
     stream.set_nonblocking(true)
 }
 
 
-impl TcpStream {
+impl UnixStream {
     /// Create a new TCP stream and issue a non-blocking connect to the
     /// specified address.
     ///
@@ -87,9 +82,9 @@ impl TcpStream {
     /// options when creating a socket which is then connected. If fine-grained
     /// control over the creation of the socket is desired, you can use
     /// `net2::TcpBuilder` to configure a socket and then pass its socket to
-    /// `TcpStream::connect_stream` to transfer ownership into mio and schedule
+    /// `UnixStream::connect_stream` to transfer ownership into mio and schedule
     /// the connect operation.
-    pub fn connect(addr: &SocketAddr) -> io::Result<TcpStream> {
+    pub fn connect(addr: &SocketAddr) -> io::Result<UnixStream> {
         let sock = match *addr {
             SocketAddr::V4(..) => TcpBuilder::new_v4(),
             SocketAddr::V6(..) => TcpBuilder::new_v6(),
@@ -99,15 +94,15 @@ impl TcpStream {
         if cfg!(windows) {
             sock.bind(&inaddr_any(addr))?;
         }
-        TcpStream::connect_stream(sock.to_tcp_stream()?, addr)
+        UnixStream::connect_stream(sock.to_tcp_stream()?, addr)
     }
 
-    /// Creates a new `TcpStream` from the pending socket inside the given
+    /// Creates a new `UnixStream` from the pending socket inside the given
     /// `std::net::TcpBuilder`, connecting it to the address specified.
     ///
     /// This constructor allows configuring the socket before it's actually
     /// connected, and this function will transfer ownership to the returned
-    /// `TcpStream` if successful. An unconnected `TcpStream` can be created
+    /// `UnixStream` if successful. An unconnected `UnixStream` can be created
     /// with the `net2::TcpBuilder` type (and also configured via that route).
     ///
     /// The platform specific behavior of this function looks like:
@@ -116,19 +111,19 @@ impl TcpStream {
     ///   `connect` call is issued.
     ///
     /// * On Windows, the address is stored internally and the connect operation
-    ///   is issued when the returned `TcpStream` is registered with an event
+    ///   is issued when the returned `UnixStream` is registered with an event
     ///   loop. Note that on Windows you must `bind` a socket before it can be
     ///   connected, so if a custom `TcpBuilder` is used it should be bound
     ///   (perhaps to `INADDR_ANY`) before this method is called.
     pub fn connect_stream(stream: net::TcpStream,
-                          addr: &SocketAddr) -> io::Result<TcpStream> {
-        Ok(TcpStream {
-            sys: sys::TcpStream::connect(stream, addr)?,
+                          addr: &SocketAddr) -> io::Result<UnixStream> {
+        Ok(UnixStream {
+            sys: sys::UnixStream::connect(stream, addr)?,
             selector_id: SelectorId::new(),
         })
     }
 
-    /// Creates a new `TcpStream` from a standard `net::TcpStream`.
+    /// Creates a new `UnixStream` from a standard `net::TcpStream`.
     ///
     /// This function is intended to be used to wrap a TCP stream from the
     /// standard library in the mio equivalent. The conversion here will
@@ -138,11 +133,11 @@ impl TcpStream {
     /// Note that the TCP stream here will not have `connect` called on it, so
     /// it should already be connected via some other means (be it manually, the
     /// net2 crate, or the standard library).
-    pub fn from_stream(stream: net::TcpStream) -> io::Result<TcpStream> {
+    pub fn from_stream(stream: net::TcpStream) -> io::Result<UnixStream> {
         set_nonblocking(&stream)?;
 
-        Ok(TcpStream {
-            sys: sys::TcpStream::from_stream(stream),
+        Ok(UnixStream {
+            sys: sys::UnixStream::from_stream(stream),
             selector_id: SelectorId::new(),
         })
     }
@@ -159,13 +154,13 @@ impl TcpStream {
 
     /// Creates a new independently owned handle to the underlying socket.
     ///
-    /// The returned `TcpStream` is a reference to the same stream that this
+    /// The returned `UnixStream` is a reference to the same stream that this
     /// object references. Both handles will read and write the same stream of
     /// data, and options set on one stream will be propagated to the other
     /// stream.
-    pub fn try_clone(&self) -> io::Result<TcpStream> {
+    pub fn try_clone(&self) -> io::Result<UnixStream> {
         self.sys.try_clone().map(|s| {
-            TcpStream {
+            UnixStream {
                 sys: s,
                 selector_id: self.selector_id.clone(),
             }
@@ -404,19 +399,19 @@ fn inaddr_any(other: &SocketAddr) -> SocketAddr {
     }
 }
 
-impl Read for TcpStream {
+impl Read for UnixStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         (&self.sys).read(buf)
     }
 }
 
-impl<'a> Read for &'a TcpStream {
+impl<'a> Read for &'a UnixStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         (&self.sys).read(buf)
     }
 }
 
-impl Write for TcpStream {
+impl Write for UnixStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         (&self.sys).write(buf)
     }
@@ -426,7 +421,7 @@ impl Write for TcpStream {
     }
 }
 
-impl<'a> Write for &'a TcpStream {
+impl<'a> Write for &'a UnixStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         (&self.sys).write(buf)
     }
@@ -436,7 +431,7 @@ impl<'a> Write for &'a TcpStream {
     }
 }
 
-impl Evented for TcpStream {
+impl Evented for UnixStream {
     fn register(&self, poll: &Poll, token: Token,
                 interest: Ready, opts: PollOpt) -> io::Result<()> {
         self.selector_id.associate_selector(poll)?;
@@ -453,7 +448,7 @@ impl Evented for TcpStream {
     }
 }
 
-impl fmt::Debug for TcpStream {
+impl fmt::Debug for UnixStream {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.sys, f)
     }
@@ -461,7 +456,7 @@ impl fmt::Debug for TcpStream {
 
 /*
  *
- * ===== TcpListener =====
+ * ===== UnixListener =====
  *
  */
 
@@ -470,13 +465,15 @@ impl fmt::Debug for TcpStream {
 /// # Examples
 ///
 /// ```
+/// # extern crate mio;
+/// # extern crate mio_uds_windows;
 /// # use std::error::Error;
 /// # fn try_main() -> Result<(), Box<Error>> {
 /// use mio::{Events, Ready, Poll, PollOpt, Token};
-/// use mio::net::TcpListener;
+/// use mio_uds_windows::net::UnixListener;
 /// use std::time::Duration;
 ///
-/// let listener = TcpListener::bind(&"127.0.0.1:34255".parse()?)?;
+/// let listener = UnixListener::bind(&"127.0.0.1:34255".parse()?)?;
 ///
 /// let poll = Poll::new()?;
 /// let mut events = Events::with_capacity(128);
@@ -495,12 +492,12 @@ impl fmt::Debug for TcpStream {
 /// #     try_main().unwrap();
 /// # }
 /// ```
-pub struct TcpListener {
-    sys: sys::TcpListener,
+pub struct UnixListener {
+    sys: sys::UnixListener,
     selector_id: SelectorId,
 }
 
-impl TcpListener {
+impl UnixListener {
     /// Convenience method to bind a new TCP listener to the specified address
     /// to receive new connections.
     ///
@@ -513,9 +510,9 @@ impl TcpListener {
     ///
     /// If fine-grained control over the binding and listening process for a
     /// socket is desired then the `net2::TcpBuilder` methods can be used in
-    /// combination with the `TcpListener::from_listener` method to transfer
+    /// combination with the `UnixListener::from_listener` method to transfer
     /// ownership into mio.
-    pub fn bind(addr: &SocketAddr) -> io::Result<TcpListener> {
+    pub fn bind(addr: &SocketAddr) -> io::Result<UnixListener> {
         // Create the socket
         let sock = match *addr {
             SocketAddr::V4(..) => TcpBuilder::new_v4(),
@@ -532,8 +529,8 @@ impl TcpListener {
 
         // listen
         let listener = sock.listen(1024)?;
-        Ok(TcpListener {
-            sys: sys::TcpListener::new(listener)?,
+        Ok(UnixListener {
+            sys: sys::UnixListener::new(listener)?,
             selector_id: SelectorId::new(),
         })
     }
@@ -542,11 +539,11 @@ impl TcpListener {
     #[cfg(feature = "with-deprecated")]
     #[doc(hidden)]
     pub fn from_listener(listener: net::TcpListener, _: &SocketAddr)
-                         -> io::Result<TcpListener> {
-        TcpListener::from_std(listener)
+                         -> io::Result<UnixListener> {
+        UnixListener::from_std(listener)
     }
 
-    /// Creates a new `TcpListener` from an instance of a
+    /// Creates a new `UnixListener` from an instance of a
     /// `std::net::TcpListener` type.
     ///
     /// This function will set the `listener` provided into nonblocking mode on
@@ -555,16 +552,16 @@ impl TcpListener {
     /// loop.
     ///
     /// The address provided must be the address that the listener is bound to.
-    pub fn from_std(listener: net::TcpListener) -> io::Result<TcpListener> {
-        sys::TcpListener::new(listener).map(|s| {
-            TcpListener {
+    pub fn from_std(listener: net::TcpListener) -> io::Result<UnixListener> {
+        sys::UnixListener::new(listener).map(|s| {
+            UnixListener {
                 sys: s,
                 selector_id: SelectorId::new(),
             }
         })
     }
 
-    /// Accepts a new `TcpStream`.
+    /// Accepts a new `UnixStream`.
     ///
     /// This may return an `Err(e)` where `e.kind()` is
     /// `io::ErrorKind::WouldBlock`. This means a stream may be ready at a later
@@ -573,9 +570,9 @@ impl TcpListener {
     ///
     /// If an accepted stream is returned, the remote address of the peer is
     /// returned along with it.
-    pub fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
+    pub fn accept(&self) -> io::Result<(UnixStream, SocketAddr)> {
         let (s, a) = try!(self.accept_std());
-        Ok((TcpStream::from_stream(s)?, a))
+        Ok((UnixStream::from_stream(s)?, a))
     }
 
     /// Accepts a new `std::net::TcpStream`.
@@ -594,12 +591,12 @@ impl TcpListener {
 
     /// Creates a new independently owned handle to the underlying socket.
     ///
-    /// The returned `TcpListener` is a reference to the same socket that this
+    /// The returned `UnixListener` is a reference to the same socket that this
     /// object references. Both handles can be used to accept incoming
     /// connections and options set on one listener will affect the other.
-    pub fn try_clone(&self) -> io::Result<TcpListener> {
+    pub fn try_clone(&self) -> io::Result<UnixListener> {
         self.sys.try_clone().map(|s| {
-            TcpListener {
+            UnixListener {
                 sys: s,
                 selector_id: self.selector_id.clone(),
             }
@@ -654,7 +651,7 @@ impl TcpListener {
     }
 }
 
-impl Evented for TcpListener {
+impl Evented for UnixListener {
     fn register(&self, poll: &Poll, token: Token,
                 interest: Ready, opts: PollOpt) -> io::Result<()> {
         self.selector_id.associate_selector(poll)?;
@@ -671,65 +668,8 @@ impl Evented for TcpListener {
     }
 }
 
-impl fmt::Debug for TcpListener {
+impl fmt::Debug for UnixListener {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.sys, f)
-    }
-}
-
-/*
- *
- * ===== UNIX ext =====
- *
- */
-
-#[cfg(all(unix, not(target_os = "fuchsia")))]
-use std::os::unix::io::{IntoRawFd, AsRawFd, FromRawFd, RawFd};
-
-#[cfg(all(unix, not(target_os = "fuchsia")))]
-impl IntoRawFd for TcpStream {
-    fn into_raw_fd(self) -> RawFd {
-        self.sys.into_raw_fd()
-    }
-}
-
-#[cfg(all(unix, not(target_os = "fuchsia")))]
-impl AsRawFd for TcpStream {
-    fn as_raw_fd(&self) -> RawFd {
-        self.sys.as_raw_fd()
-    }
-}
-
-#[cfg(all(unix, not(target_os = "fuchsia")))]
-impl FromRawFd for TcpStream {
-    unsafe fn from_raw_fd(fd: RawFd) -> TcpStream {
-        TcpStream {
-            sys: FromRawFd::from_raw_fd(fd),
-            selector_id: SelectorId::new(),
-        }
-    }
-}
-
-#[cfg(all(unix, not(target_os = "fuchsia")))]
-impl IntoRawFd for TcpListener {
-    fn into_raw_fd(self) -> RawFd {
-        self.sys.into_raw_fd()
-    }
-}
-
-#[cfg(all(unix, not(target_os = "fuchsia")))]
-impl AsRawFd for TcpListener {
-    fn as_raw_fd(&self) -> RawFd {
-        self.sys.as_raw_fd()
-    }
-}
-
-#[cfg(all(unix, not(target_os = "fuchsia")))]
-impl FromRawFd for TcpListener {
-    unsafe fn from_raw_fd(fd: RawFd) -> TcpListener {
-        TcpListener {
-            sys: FromRawFd::from_raw_fd(fd),
-            selector_id: SelectorId::new(),
-        }
     }
 }

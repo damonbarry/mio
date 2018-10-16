@@ -573,7 +573,6 @@ fn connection_reset_by_peer() {
 }
 
 #[test]
-#[cfg_attr(target_os = "fuchsia", ignore)]
 fn connect_error() {
     let poll = Poll::new().unwrap();
     let mut events = Events::with_capacity(16);

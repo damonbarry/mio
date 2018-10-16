@@ -42,8 +42,10 @@
 //! # Example
 //!
 //! ```
+//! # extern crate mio;
+//! # extern crate mio_uds_windows;
 //! use mio::*;
-//! use mio::net::{TcpListener, TcpStream};
+//! use mio_uds_windows::net::{UnixListener, UnixStream};
 //!
 //! // Setup some tokens to allow us to identify which event is
 //! // for which socket.
@@ -53,7 +55,7 @@
 //! let addr = "127.0.0.1:13265".parse().unwrap();
 //!
 //! // Setup the server socket
-//! let server = TcpListener::bind(&addr).unwrap();
+//! let server = UnixListener::bind(&addr).unwrap();
 //!
 //! // Create a poll instance
 //! let poll = Poll::new().unwrap();
@@ -63,7 +65,7 @@
 //!               PollOpt::edge()).unwrap();
 //!
 //! // Setup the client socket
-//! let sock = TcpStream::connect(&addr).unwrap();
+//! let sock = UnixStream::connect(&addr).unwrap();
 //!
 //! // Register the socket
 //! poll.register(&sock, CLIENT, Ready::readable(),
@@ -116,19 +118,6 @@ mod poll;
 mod sys;
 
 pub mod net;
-
-#[deprecated(since = "0.6.5", note = "use iovec crate directly")]
-#[cfg(feature = "with-deprecated")]
-#[doc(hidden)]
-pub use iovec::IoVec;
-
-#[deprecated(since = "0.6.6", note = "use net module instead")]
-#[cfg(feature = "with-deprecated")]
-#[doc(hidden)]
-pub mod tcp {
-    pub use net::{TcpListener, TcpStream};
-    pub use std::net::Shutdown;
-}
 
 /// Windows-only extensions to the mio crate.
 ///

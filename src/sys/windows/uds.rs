@@ -17,7 +17,7 @@ use sys::windows::from_raw_arc::FromRawArc;
 use sys::windows::selector::{Overlapped, ReadyBinding};
 use sys::windows::Family;
 
-pub struct TcpStream {
+pub struct UnixStream {
     /// Separately stored implementation to ensure that the `Drop`
     /// implementation on this type is only executed when it's actually dropped
     /// (many clones of this `imp` are made).
@@ -25,7 +25,7 @@ pub struct TcpStream {
     registration: Mutex<Option<Registration>>,
 }
 
-pub struct TcpListener {
+pub struct UnixListener {
     imp: ListenerImp,
     registration: Mutex<Option<Registration>>,
 }
@@ -90,10 +90,10 @@ enum State<T, U> {
     Error(io::Error),   // there was an I/O error
 }
 
-impl TcpStream {
+impl UnixStream {
     fn new(socket: net::TcpStream,
-           deferred_connect: Option<SocketAddr>) -> TcpStream {
-        TcpStream {
+           deferred_connect: Option<SocketAddr>) -> UnixStream {
+        UnixStream {
             registration: Mutex::new(None),
             imp: StreamImp {
                 inner: FromRawArc::new(StreamIo {
@@ -113,13 +113,13 @@ impl TcpStream {
     }
 
     pub fn connect(socket: net::TcpStream, addr: &SocketAddr)
-                   -> io::Result<TcpStream> {
+                   -> io::Result<UnixStream> {
         socket.set_nonblocking(true)?;
-        Ok(TcpStream::new(socket, Some(*addr)))
+        Ok(UnixStream::new(socket, Some(*addr)))
     }
 
-    pub fn from_stream(stream: net::TcpStream) -> TcpStream {
-        TcpStream::new(stream, None)
+    pub fn from_stream(stream: net::TcpStream) -> UnixStream {
+        UnixStream::new(stream, None)
     }
 
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
@@ -130,8 +130,8 @@ impl TcpStream {
         self.imp.inner.socket.local_addr()
     }
 
-    pub fn try_clone(&self) -> io::Result<TcpStream> {
-        self.imp.inner.socket.try_clone().map(|s| TcpStream::new(s, None))
+    pub fn try_clone(&self) -> io::Result<UnixStream> {
+        self.imp.inner.socket.try_clone().map(|s| UnixStream::new(s, None))
     }
 
     pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
@@ -577,7 +577,7 @@ fn write_done(status: &OVERLAPPED_ENTRY) {
     }
 }
 
-impl Evented for TcpStream {
+impl Evented for UnixStream {
     fn register(&self, poll: &Poll, token: Token,
                 interest: Ready, opts: PollOpt) -> io::Result<()> {
         let mut me = self.inner();
@@ -615,14 +615,14 @@ impl Evented for TcpStream {
     }
 }
 
-impl fmt::Debug for TcpStream {
+impl fmt::Debug for UnixStream {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("TcpStream")
+        f.debug_struct("UnixStream")
             .finish()
     }
 }
 
-impl Drop for TcpStream {
+impl Drop for UnixStream {
     fn drop(&mut self) {
         // If we're still internally reading, we're no longer interested. Note
         // though that we don't cancel any writes which may have been issued to
@@ -643,18 +643,18 @@ impl Drop for TcpStream {
     }
 }
 
-impl TcpListener {
+impl UnixListener {
     pub fn new(socket: net::TcpListener)
-               -> io::Result<TcpListener> {
+               -> io::Result<UnixListener> {
         let addr = socket.local_addr()?;
-        Ok(TcpListener::new_family(socket, match addr {
+        Ok(UnixListener::new_family(socket, match addr {
             SocketAddr::V4(..) => Family::V4,
             SocketAddr::V6(..) => Family::V6,
         }))
     }
 
-    fn new_family(socket: net::TcpListener, family: Family) -> TcpListener {
-        TcpListener {
+    fn new_family(socket: net::TcpListener, family: Family) -> UnixListener {
+        UnixListener {
             registration: Mutex::new(None),
             imp: ListenerImp {
                 inner: FromRawArc::new(ListenerIo {
@@ -694,9 +694,9 @@ impl TcpListener {
         self.imp.inner.socket.local_addr()
     }
 
-    pub fn try_clone(&self) -> io::Result<TcpListener> {
+    pub fn try_clone(&self) -> io::Result<UnixListener> {
         self.imp.inner.socket.try_clone().map(|s| {
-            TcpListener::new_family(s, self.imp.inner.family)
+            UnixListener::new_family(s, self.imp.inner.family)
         })
     }
 
@@ -793,7 +793,7 @@ fn accept_done(status: &OVERLAPPED_ENTRY) {
     me2.add_readiness(&mut me, Ready::readable());
 }
 
-impl Evented for TcpListener {
+impl Evented for UnixListener {
     fn register(&self, poll: &Poll, token: Token,
                 interest: Ready, opts: PollOpt) -> io::Result<()> {
         let mut me = self.inner();
@@ -824,14 +824,14 @@ impl Evented for TcpListener {
     }
 }
 
-impl fmt::Debug for TcpListener {
+impl fmt::Debug for UnixListener {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("TcpListener")
+        f.debug_struct("UnixListener")
             .finish()
     }
 }
 
-impl Drop for TcpListener {
+impl Drop for UnixListener {
     fn drop(&mut self) {
         // If we're still internally reading, we're no longer interested.
         unsafe {

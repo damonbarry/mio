@@ -144,12 +144,12 @@ use winapi;
 
 #[macro_use]
 mod selector;
-mod tcp;
+mod uds;
 mod from_raw_arc;
 mod buffer_pool;
 
 pub use self::selector::{Events, Selector, Overlapped, Binding};
-pub use self::tcp::{TcpStream, TcpListener};
+pub use self::uds::{UnixStream, UnixListener};
 
 #[derive(Copy, Clone)]
 enum Family {

@@ -7,6 +7,6 @@
 //!
 //! [portability guidelines]: ../struct.Poll.html#portability
 
-mod tcp;
+mod uds;
 
-pub use self::tcp::{TcpListener, TcpStream};
+pub use self::uds::{UnixListener, UnixStream};
