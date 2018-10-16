@@ -8,15 +8,15 @@
 /// [portability guidelines]: ../struct.Poll.html#portability
 
 use std::fmt;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::net::{self, SocketAddr, SocketAddrV4, SocketAddrV6, Ipv4Addr, Ipv6Addr};
 use std::time::Duration;
 
 use net2::TcpBuilder;
 use iovec::IoVec;
 
-use {io, sys, Ready, Poll, PollOpt, Token};
-use event::Evented;
+use {sys};
+use mio::{Evented, Ready, Poll, PollOpt, Token};
 use poll::SelectorId;
 
 /*

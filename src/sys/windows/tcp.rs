@@ -12,8 +12,7 @@ use net2::{TcpBuilder, TcpStreamExt as Net2TcpExt};
 use winapi::*;
 use iovec::IoVec;
 
-use {poll, Ready, Poll, PollOpt, Token};
-use event::Evented;
+use mio::{Evented, Ready, Registration, Poll, PollOpt, Token};
 use sys::windows::from_raw_arc::FromRawArc;
 use sys::windows::selector::{Overlapped, ReadyBinding};
 use sys::windows::Family;
@@ -23,12 +22,12 @@ pub struct TcpStream {
     /// implementation on this type is only executed when it's actually dropped
     /// (many clones of this `imp` are made).
     imp: StreamImp,
-    registration: Mutex<Option<poll::Registration>>,
+    registration: Mutex<Option<Registration>>,
 }
 
 pub struct TcpListener {
     imp: ListenerImp,
-    registration: Mutex<Option<poll::Registration>>,
+    registration: Mutex<Option<Registration>>,
 }
 
 #[derive(Clone)]

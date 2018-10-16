@@ -1,4 +1,5 @@
 #![allow(deprecated)]
+#![allow(dead_code)]
 
 use std::{fmt, io};
 use std::cell::UnsafeCell;
@@ -13,10 +14,10 @@ use winapi::*;
 use miow;
 use miow::iocp::{CompletionPort, CompletionStatus};
 
-use event_imp::{Event, Evented, Ready};
-use poll::{self, Poll};
+use mio::{Event, Evented, Poll, Ready, Registration, SetReadiness};
+use {poll};
 use sys::windows::buffer_pool::BufferPool;
-use {Token, PollOpt};
+use mio::{Token, PollOpt};
 
 /// Each Selector has a globally unique(ish) ID associated with it. This ID
 /// gets tracked by `TcpStream`, `TcpListener`, etc... when they are first
@@ -279,7 +280,7 @@ impl fmt::Debug for Binding {
 /// `SetReadiness` handle.
 pub struct ReadyBinding {
     binding: Binding,
-    readiness: Option<poll::SetReadiness>,
+    readiness: Option<SetReadiness>,
 }
 
 impl ReadyBinding {
@@ -354,7 +355,7 @@ impl ReadyBinding {
                            token: Token,
                            events: Ready,
                            opts: PollOpt,
-                           registration: &Mutex<Option<poll::Registration>>)
+                           registration: &Mutex<Option<Registration>>)
                            -> io::Result<()> {
         trace!("register {:?} {:?}", token, events);
         unsafe {
@@ -374,7 +375,7 @@ impl ReadyBinding {
                              token: Token,
                              events: Ready,
                              opts: PollOpt,
-                             registration: &Mutex<Option<poll::Registration>>)
+                             registration: &Mutex<Option<Registration>>)
                              -> io::Result<()> {
         trace!("reregister {:?} {:?}", token, events);
         unsafe {
@@ -393,7 +394,7 @@ impl ReadyBinding {
     pub fn deregister(&mut self,
                       socket: &AsRawSocket,
                       poll: &Poll,
-                      registration: &Mutex<Option<poll::Registration>>)
+                      registration: &Mutex<Option<Registration>>)
                       -> io::Result<()> {
         trace!("deregistering");
         unsafe {

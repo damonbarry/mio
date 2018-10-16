@@ -95,17 +95,10 @@
 //! ```
 
 extern crate lazycell;
+extern crate mio;
 extern crate net2;
 extern crate iovec;
 extern crate slab;
-
-#[cfg(target_os = "fuchsia")]
-extern crate fuchsia_zircon as zircon;
-#[cfg(target_os = "fuchsia")]
-extern crate fuchsia_zircon_sys as zircon_sys;
-
-#[cfg(unix)]
-extern crate libc;
 
 #[cfg(windows)]
 extern crate miow;
@@ -119,28 +112,10 @@ extern crate kernel32;
 #[macro_use]
 extern crate log;
 
-mod event_imp;
-mod io;
 mod poll;
 mod sys;
-mod token;
 
 pub mod net;
-
-#[deprecated(since = "0.6.5", note = "use mio-extras instead")]
-#[cfg(feature = "with-deprecated")]
-#[doc(hidden)]
-pub mod channel;
-
-#[deprecated(since = "0.6.5", note = "use mio-extras instead")]
-#[cfg(feature = "with-deprecated")]
-#[doc(hidden)]
-pub mod timer;
-
-#[deprecated(since = "0.6.5", note = "update to use `Poll`")]
-#[cfg(feature = "with-deprecated")]
-#[doc(hidden)]
-pub mod deprecated;
 
 #[deprecated(since = "0.6.5", note = "use iovec crate directly")]
 #[cfg(feature = "with-deprecated")]
@@ -153,72 +128,6 @@ pub use iovec::IoVec;
 pub mod tcp {
     pub use net::{TcpListener, TcpStream};
     pub use std::net::Shutdown;
-}
-
-#[deprecated(since = "0.6.6", note = "use net module instead")]
-#[cfg(feature = "with-deprecated")]
-#[doc(hidden)]
-pub mod udp;
-
-pub use poll::{
-    Poll,
-    Registration,
-    SetReadiness,
-};
-pub use event_imp::{
-    PollOpt,
-    Ready,
-};
-pub use token::Token;
-
-pub mod event {
-    //! Readiness event types and utilities.
-
-    pub use super::poll::{Events, Iter};
-    pub use super::event_imp::{Event, Evented};
-}
-
-pub use event::{
-    Events,
-};
-
-#[deprecated(since = "0.6.5", note = "use events:: instead")]
-#[cfg(feature = "with-deprecated")]
-#[doc(hidden)]
-pub use event::{Event, Evented};
-
-#[deprecated(since = "0.6.5", note = "use events::Iter instead")]
-#[cfg(feature = "with-deprecated")]
-#[doc(hidden)]
-pub use poll::Iter as EventsIter;
-
-#[deprecated(since = "0.6.5", note = "std::io::Error can avoid the allocation now")]
-#[cfg(feature = "with-deprecated")]
-#[doc(hidden)]
-pub use io::deprecated::would_block;
-
-#[cfg(all(unix, not(target_os = "fuchsia")))]
-pub mod unix {
-    //! Unix only extensions
-    pub use sys::{
-        EventedFd,
-    };
-    pub use sys::unix::UnixReady;
-}
-
-#[cfg(target_os = "fuchsia")]
-pub mod fuchsia {
-    //! Fuchsia-only extensions
-    //!
-    //! # Stability
-    //!
-    //! This module depends on the [magenta-sys crate](https://crates.io/crates/magenta-sys)
-    //! and so might introduce breaking changes, even on minor releases,
-    //! so long as that crate remains unstable.
-    pub use sys::{
-        EventedHandle,
-    };
-    pub use sys::fuchsia::{FuchsiaReady, zx_signals_t};
 }
 
 /// Windows-only extensions to the mio crate.
