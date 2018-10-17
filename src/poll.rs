@@ -15,8 +15,8 @@ pub struct SelectorId {
 // ===== Accessors for internal usage =====
 
 pub fn selector(poll: &Poll) -> &sys::Selector {
-    // unsavory converstion from Poll's selector to our internal selector
-    // (same code, but from a different build)
+    // unsavory conversion from Poll's selector to our internal selector
+    // (which is the same code, but from a different build)
     unsafe { mem::transmute(&poll as *const _ as *const _) }
 }
 
