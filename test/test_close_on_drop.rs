@@ -1,7 +1,8 @@
-use {localhost, TryRead};
-use mio::{Events, Poll, PollOpt, Ready, Token};
+use {TryRead};
 use bytes::ByteBuf;
-use mio::net::{TcpListener, TcpStream};
+use mio::{Events, Poll, PollOpt, Ready, Token};
+use mio_uds_windows::{UnixListener, UnixStream};
+use tempdir::TempDir;
 
 use self::TestState::{Initial, AfterRead};
 
@@ -15,14 +16,14 @@ enum TestState {
 }
 
 struct TestHandler {
-    srv: TcpListener,
-    cli: TcpStream,
+    srv: UnixListener,
+    cli: UnixStream,
     state: TestState,
     shutdown: bool,
 }
 
 impl TestHandler {
-    fn new(srv: TcpListener, cli: TcpStream) -> TestHandler {
+    fn new(srv: UnixListener, cli: UnixStream) -> TestHandler {
         TestHandler {
             srv: srv,
             cli: cli,
@@ -81,17 +82,16 @@ pub fn test_close_on_drop() {
     let _ = ::env_logger::init();
     debug!("Starting TEST_CLOSE_ON_DROP");
     let mut poll = Poll::new().unwrap();
-
-    // The address to connect to - localhost + a unique port
-    let addr = localhost();
+    let dir = TempDir::new("uds").unwrap();
 
     // == Create & setup server socket
-    let srv = TcpListener::bind(&addr).unwrap();
+    let srv = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = srv.local_addr().unwrap();
 
     poll.register(&srv, SERVER, Ready::readable(), PollOpt::edge()).unwrap();
 
     // == Create & setup client socket
-    let sock = TcpStream::connect(&addr).unwrap();
+    let sock = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     poll.register(&sock, CLIENT, Ready::writable(), PollOpt::edge()).unwrap();
 

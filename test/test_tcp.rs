@@ -1,27 +1,26 @@
 use std::cmp;
 use std::io::prelude::*;
 use std::io;
-use std::net;
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
-
-use net2::{self, TcpStreamExt};
+use tempdir::TempDir;
 
 use {TryRead, TryWrite};
 use mio::{Token, Ready, PollOpt, Poll, Events};
 use iovec::IoVec;
-use mio::net::{TcpListener, TcpStream};
+use mio_uds_windows::{net, UnixListener, UnixStream};
 
 #[test]
 fn accept() {
-    struct H { hit: bool, listener: TcpListener, shutdown: bool }
+    struct H { hit: bool, listener: UnixListener, shutdown: bool }
+    let dir = TempDir::new("uds").unwrap();
 
-    let l = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = l.local_addr().unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l.local_addr().unwrap();;
 
     let t = thread::spawn(move || {
-        net::TcpStream::connect(&addr).unwrap();
+        net::UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
     });
 
     let poll = Poll::new().unwrap();
@@ -50,9 +49,10 @@ fn accept() {
 #[test]
 fn connect() {
     struct H { hit: u32, shutdown: bool }
+    let dir = TempDir::new("uds").unwrap();
 
-    let l = net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = l.local_addr().unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l.local_addr().unwrap();;
 
     let (tx, rx) = channel();
     let (tx2, rx2) = channel();
@@ -64,7 +64,7 @@ fn connect() {
     });
 
     let poll = Poll::new().unwrap();
-    let s = TcpStream::connect(&addr).unwrap();
+    let s = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     poll.register(&s, Token(1), Ready::readable() | Ready::writable(), PollOpt::edge()).unwrap();
 
@@ -110,10 +110,11 @@ fn connect() {
 #[test]
 fn read() {
     const N: usize = 16 * 1024 * 1024;
-    struct H { amt: usize, socket: TcpStream, shutdown: bool }
+    struct H { amt: usize, socket: UnixStream, shutdown: bool }
+    let dir = TempDir::new("uds").unwrap();
 
-    let l = net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = l.local_addr().unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l.local_addr().unwrap();;
 
     let t = thread::spawn(move || {
         let mut s = l.accept().unwrap().0;
@@ -125,7 +126,7 @@ fn read() {
     });
 
     let poll = Poll::new().unwrap();
-    let s = TcpStream::connect(&addr).unwrap();
+    let s = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     poll.register(&s, Token(1), Ready::readable(), PollOpt::edge()).unwrap();
 
@@ -138,61 +139,6 @@ fn read() {
         for event in &events {
             assert_eq!(event.token(), Token(1));
             let mut b = [0; 1024];
-            loop {
-                if let Some(amt) = h.socket.try_read(&mut b).unwrap() {
-                    h.amt += amt;
-                } else {
-                    break
-                }
-                if h.amt >= N {
-                    h.shutdown = true;
-                    break
-                }
-            }
-        }
-    }
-    t.join().unwrap();
-}
-
-#[test]
-fn peek() {
-    const N: usize = 16 * 1024 * 1024;
-    struct H { amt: usize, socket: TcpStream, shutdown: bool }
-
-    let l = net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = l.local_addr().unwrap();
-
-    let t = thread::spawn(move || {
-        let mut s = l.accept().unwrap().0;
-        let b = [0; 1024];
-        let mut amt = 0;
-        while amt < N {
-            amt += s.write(&b).unwrap();
-        }
-    });
-
-    let poll = Poll::new().unwrap();
-    let s = TcpStream::connect(&addr).unwrap();
-
-    poll.register(&s, Token(1), Ready::readable(), PollOpt::edge()).unwrap();
-
-    let mut events = Events::with_capacity(128);
-
-    let mut h = H { amt: 0, socket: s, shutdown: false };
-    while !h.shutdown {
-        poll.poll(&mut events, None).unwrap();
-
-        for event in &events {
-            assert_eq!(event.token(), Token(1));
-            let mut b = [0; 1024];
-            match h.socket.peek(&mut b) {
-                Ok(_) => (),
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    continue
-                },
-                Err(e) => panic!("unexpected error: {:?}", e),
-            }
-
             loop {
                 if let Some(amt) = h.socket.try_read(&mut b).unwrap() {
                     h.amt += amt;
@@ -212,9 +158,10 @@ fn peek() {
 #[test]
 fn read_bufs() {
     const N: usize = 16 * 1024 * 1024;
+    let dir = TempDir::new("uds").unwrap();
 
-    let l = net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = l.local_addr().unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l.local_addr().unwrap();;
 
     let t = thread::spawn(move || {
         let mut s = l.accept().unwrap().0;
@@ -228,7 +175,7 @@ fn read_bufs() {
     let poll = Poll::new().unwrap();
     let mut events = Events::with_capacity(128);
 
-    let s = TcpStream::connect(&addr).unwrap();
+    let s = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     poll.register(&s, Token(1), Ready::readable(), PollOpt::level()).unwrap();
 
@@ -284,10 +231,11 @@ fn read_bufs() {
 #[test]
 fn write() {
     const N: usize = 16 * 1024 * 1024;
-    struct H { amt: usize, socket: TcpStream, shutdown: bool }
+    struct H { amt: usize, socket: UnixStream, shutdown: bool }
+    let dir = TempDir::new("uds").unwrap();
 
-    let l = net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = l.local_addr().unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l.local_addr().unwrap();;
 
     let t = thread::spawn(move || {
         let mut s = l.accept().unwrap().0;
@@ -299,7 +247,7 @@ fn write() {
     });
 
     let poll = Poll::new().unwrap();
-    let s = TcpStream::connect(&addr).unwrap();
+    let s = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     poll.register(&s, Token(1), Ready::writable(), PollOpt::edge()).unwrap();
 
@@ -331,9 +279,10 @@ fn write() {
 #[test]
 fn write_bufs() {
     const N: usize = 16 * 1024 * 1024;
+    let dir = TempDir::new("uds").unwrap();
 
-    let l = net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = l.local_addr().unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l.local_addr().unwrap();;
 
     let t = thread::spawn(move || {
         let mut s = l.accept().unwrap().0;
@@ -353,7 +302,7 @@ fn write_bufs() {
 
     let poll = Poll::new().unwrap();
     let mut events = Events::with_capacity(128);
-    let s = TcpStream::connect(&addr).unwrap();
+    let s = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
     poll.register(&s, Token(1), Ready::writable(), PollOpt::level()).unwrap();
 
     let b1 = &[1; 10][..];
@@ -384,11 +333,13 @@ fn write_bufs() {
 
 #[test]
 fn connect_then_close() {
-    struct H { listener: TcpListener, shutdown: bool }
+    struct H { listener: UnixListener, shutdown: bool }
+    let dir = TempDir::new("uds").unwrap();
 
     let poll = Poll::new().unwrap();
-    let l = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let s = TcpStream::connect(&l.local_addr().unwrap()).unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l.local_addr().unwrap();;
+    let s = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     poll.register(&l, Token(1), Ready::readable(), PollOpt::edge()).unwrap();
     poll.register(&s, Token(2), Ready::readable(), PollOpt::edge()).unwrap();
@@ -415,7 +366,8 @@ fn connect_then_close() {
 #[test]
 fn listen_then_close() {
     let poll = Poll::new().unwrap();
-    let l = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let dir = TempDir::new("uds").unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
 
     poll.register(&l, Token(1), Ready::readable(), PollOpt::edge()).unwrap();
     drop(l);
@@ -426,7 +378,7 @@ fn listen_then_close() {
 
     for event in &events {
         if event.token() == Token(1) {
-            panic!("recieved ready() on a closed TcpListener")
+            panic!("recieved ready() on a closed UnixListener")
         }
     }
 }
@@ -439,24 +391,26 @@ fn assert_sync<T: Sync>() {
 
 #[test]
 fn test_tcp_sockets_are_send() {
-    assert_send::<TcpListener>();
-    assert_send::<TcpStream>();
-    assert_sync::<TcpListener>();
-    assert_sync::<TcpStream>();
+    assert_send::<UnixListener>();
+    assert_send::<UnixStream>();
+    assert_sync::<UnixListener>();
+    assert_sync::<UnixStream>();
 }
 
 #[test]
 fn bind_twice_bad() {
-    let l1 = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = l1.local_addr().unwrap();
-    assert!(TcpListener::bind(&addr).is_err());
+    let dir = TempDir::new("uds").unwrap();
+    let l1 = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l1.local_addr().unwrap();;
+    assert!(UnixListener::bind(&addr.as_pathname().unwrap()).is_err());
 }
 
 #[test]
 fn multiple_writes_immediate_success() {
     const N: usize = 16;
-    let l = net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = l.local_addr().unwrap();
+    let dir = TempDir::new("uds").unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l.local_addr().unwrap();;
 
     let t = thread::spawn(move || {
         let mut s = l.accept().unwrap().0;
@@ -475,7 +429,7 @@ fn multiple_writes_immediate_success() {
     });
 
     let poll = Poll::new().unwrap();
-    let mut s = TcpStream::connect(&addr).unwrap();
+    let mut s = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
     poll.register(&s, Token(1), Ready::writable(), PollOpt::level()).unwrap();
     let mut events = Events::with_capacity(16);
 
@@ -501,20 +455,17 @@ fn connection_reset_by_peer() {
     let poll = Poll::new().unwrap();
     let mut events = Events::with_capacity(16);
     let mut buf = [0u8; 16];
+    let dir = TempDir::new("uds").unwrap();
 
     // Create listener
-    let l = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = l.local_addr().unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l.local_addr().unwrap();;
 
     // Connect client
-    let client = net2::TcpBuilder::new_v4().unwrap()
-        .to_tcp_stream().unwrap();
-
-    client.set_linger(Some(Duration::from_millis(0))).unwrap();
-    client.connect(&addr).unwrap();
+    let client = net::UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     // Convert to Mio stream
-    let client = TcpStream::from_stream(client).unwrap();
+    let client = UnixStream::from_stream(client).unwrap();
 
     // Register server
     poll.register(&l, Token(0), Ready::readable(), PollOpt::edge()).unwrap();
@@ -576,16 +527,16 @@ fn connection_reset_by_peer() {
 fn connect_error() {
     let poll = Poll::new().unwrap();
     let mut events = Events::with_capacity(16);
+    let dir = TempDir::new("uds").unwrap();
 
-    // Pick a "random" port that shouldn't be in use.
-    let l = match TcpStream::connect(&"127.0.0.1:38381".parse().unwrap()) {
+    let l = match UnixStream::connect(&dir.path().join("foo")) {
         Ok(l) => l,
         Err(ref e) if e.kind() == io::ErrorKind::ConnectionRefused => {
             // Connection failed synchronously.  This is not a bug, but it
             // unfortunately doesn't get us the code coverage we want.
             return;
         },
-        Err(e) => panic!("TcpStream::connect unexpected error {:?}", e)
+        Err(e) => panic!("UnixStream::connect unexpected error {:?}", e)
     };
 
     poll.register(&l, Token(0), Ready::writable(), PollOpt::edge()).unwrap();
@@ -610,16 +561,17 @@ fn write_error() {
     let poll = Poll::new().unwrap();
     let mut events = Events::with_capacity(16);
     let (tx, rx) = channel();
+    let dir = TempDir::new("uds").unwrap();
 
-    let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = listener.local_addr().unwrap();
+    let listener = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = listener.local_addr().unwrap();;
     let t = thread::spawn(move || {
         let (conn, _addr) = listener.accept().unwrap();
         rx.recv().unwrap();
         drop(conn);
     });
 
-    let mut s = TcpStream::connect(&addr).unwrap();
+    let mut s = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
     poll.register(&s,
                   Token(0),
                   Ready::readable() | Ready::writable(),

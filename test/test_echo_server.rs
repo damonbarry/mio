@@ -1,15 +1,16 @@
-use {localhost, TryRead, TryWrite};
+use {TryRead, TryWrite};
 use mio::{Events, Poll, PollOpt, Ready, Token};
-use mio::net::{TcpListener, TcpStream};
+use mio_uds_windows::{UnixListener, UnixStream};
 use bytes::{Buf, ByteBuf, MutByteBuf, SliceBuf};
 use slab::Slab;
 use std::io;
+use tempdir::TempDir;
 
 const SERVER: Token = Token(10_000_000);
 const CLIENT: Token = Token(10_000_001);
 
 struct EchoConn {
-    sock: TcpStream,
+    sock: UnixStream,
     buf: Option<ByteBuf>,
     mut_buf: Option<MutByteBuf>,
     token: Option<Token>,
@@ -17,7 +18,7 @@ struct EchoConn {
 }
 
 impl EchoConn {
-    fn new(sock: TcpStream) -> EchoConn {
+    fn new(sock: UnixStream) -> EchoConn {
         EchoConn {
             sock: sock,
             buf: None,
@@ -84,7 +85,7 @@ impl EchoConn {
 }
 
 struct EchoServer {
-    sock: TcpListener,
+    sock: UnixListener,
     conns: Slab<EchoConn>
 }
 
@@ -123,7 +124,7 @@ impl EchoServer {
 }
 
 struct EchoClient {
-    sock: TcpStream,
+    sock: UnixStream,
     msgs: Vec<&'static str>,
     tx: SliceBuf<'static>,
     rx: SliceBuf<'static>,
@@ -136,7 +137,7 @@ struct EchoClient {
 
 // Sends a message and expects to receive the same exact message, one at a time
 impl EchoClient {
-    fn new(sock: TcpStream, tok: Token,  mut msgs: Vec<&'static str>) -> EchoClient {
+    fn new(sock: UnixStream, tok: Token,  mut msgs: Vec<&'static str>) -> EchoClient {
         let curr = msgs.remove(0);
 
         EchoClient {
@@ -244,7 +245,7 @@ struct Echo {
 }
 
 impl Echo {
-    fn new(srv: TcpListener, client: TcpStream, msgs: Vec<&'static str>) -> Echo {
+    fn new(srv: UnixListener, client: UnixStream, msgs: Vec<&'static str>) -> Echo {
         Echo {
             server: EchoServer {
                 sock: srv,
@@ -259,15 +260,16 @@ impl Echo {
 pub fn test_echo_server() {
     debug!("Starting TEST_ECHO_SERVER");
     let mut poll = Poll::new().unwrap();
+    let dir = TempDir::new("uds").unwrap();
 
-    let addr = localhost();
-    let srv = TcpListener::bind(&addr).unwrap();
+    let srv = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = srv.local_addr().unwrap();
 
     info!("listen for connections");
     poll.register(&srv, SERVER, Ready::readable(),
                             PollOpt::edge() | PollOpt::oneshot()).unwrap();
 
-    let sock = TcpStream::connect(&addr).unwrap();
+    let sock = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     // Connect to the server
     poll.register(&sock, CLIENT, Ready::writable(),

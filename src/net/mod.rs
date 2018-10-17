@@ -25,7 +25,7 @@ mod c {
     pub const AF_UNIX: ADDRESS_FAMILY = winapi::AF_UNIX as _;
 
     #[allow(non_camel_case_types)]
-    #[derive(Clone)]
+    #[derive(Copy, Clone)]
     #[repr(C)]
     pub struct sockaddr_un {
         pub sun_family: ADDRESS_FAMILY,
@@ -143,7 +143,7 @@ enum AddressKind<'a> {
 /// };
 /// let addr = socket.local_addr().expect("Couldn't get local address");
 /// ```
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct SocketAddr {
     addr: c::sockaddr_un,
     len: c_int,

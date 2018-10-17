@@ -204,18 +204,17 @@ pub trait UnixListenerExt {
     /// an overlapped fashion.
     ///
     /// This function will issue an I/O request to accept an incoming connection
-    /// with the specified overlapped instance. The `socket` provided must be a
-    /// configured but not bound or connected socket, and if successful this
-    /// will consume the internal socket of the builder to return a Unix domain
-    /// socket stream.
+    /// with the specified overlapped instance. The `socket` provided must be
+    /// configured but not bound or connected. If successful this method will
+    /// consume the socket to return a UDS stream.
     ///
     /// The `addrs` buffer provided will be filled in with the local and remote
     /// addresses of the connection upon completion.
     ///
-    /// If the accept succeeds immediately, `Ok(true)` is returned. If
-    /// the connect indicates that the I/O is currently pending, `Ok(false)` is
-    /// returned. Otherwise, the error associated with the operation is
-    /// returned and no overlapped operation is enqueued.
+    /// If the accept succeeds immediately, `Ok(true)` is returned. If the
+    /// connect indicates that the I/O is currently pending, `Ok(false)` is
+    /// returned. Otherwise, the error associated with the operation is returned
+    /// and no overlapped operation is enqueued.
     ///
     /// # Unsafety
     ///

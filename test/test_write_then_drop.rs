@@ -1,16 +1,18 @@
 use std::io::{Write, Read};
 
 use mio::event::Evented;
-use mio::net::{TcpListener, TcpStream};
+use mio_uds_windows::{UnixListener, UnixStream};
 use mio::{Poll, Events, Ready, PollOpt, Token};
+use tempdir::TempDir;
 
 #[test]
 fn write_then_drop() {
     drop(::env_logger::init());
+    let dir = TempDir::new("uds").unwrap();
 
-    let a = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let a = UnixListener::bind(dir.path().join("foo")).unwrap();
     let addr = a.local_addr().unwrap();
-    let mut s = TcpStream::connect(&addr).unwrap();
+    let mut s = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     let poll = Poll::new().unwrap();
 
@@ -66,10 +68,11 @@ fn write_then_drop() {
 #[test]
 fn write_then_deregister() {
     drop(::env_logger::init());
+    let dir = TempDir::new("uds").unwrap();
 
-    let a = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let a = UnixListener::bind(dir.path().join("foo")).unwrap();
     let addr = a.local_addr().unwrap();
-    let mut s = TcpStream::connect(&addr).unwrap();
+    let mut s = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     let poll = Poll::new().unwrap();
 

@@ -1,21 +1,18 @@
 use std::fmt;
 use std::io::{self, Read, ErrorKind};
 use std::mem;
-use std::net::{self, SocketAddr, Shutdown};
+use std::net::Shutdown;
 use std::os::windows::prelude::*;
 use std::sync::{Mutex, MutexGuard};
-use std::time::Duration;
 
+use mio::{Evented, Ready, Registration, Poll, PollOpt, Token};
 use miow::iocp::CompletionStatus;
-use miow::net::*;
-use net2::{TcpBuilder, TcpStreamExt as Net2TcpExt};
 use winapi::*;
 use iovec::IoVec;
 
-use mio::{Evented, Ready, Registration, Poll, PollOpt, Token};
+use net::{self, AcceptAddrsBuf, SocketAddr, UnixListenerExt, UnixStreamExt};
 use sys::windows::from_raw_arc::FromRawArc;
 use sys::windows::selector::{Overlapped, ReadyBinding};
-use sys::windows::Family;
 
 pub struct UnixStream {
     /// Separately stored implementation to ensure that the `Drop`
@@ -55,14 +52,13 @@ struct StreamIo {
     inner: Mutex<StreamInner>,
     read: Overlapped, // also used for connect
     write: Overlapped,
-    socket: net::TcpStream,
+    socket: net::UnixStream,
 }
 
 struct ListenerIo {
     inner: Mutex<ListenerInner>,
     accept: Overlapped,
-    family: Family,
-    socket: net::TcpListener,
+    socket: net::UnixListener,
 }
 
 struct StreamInner {
@@ -78,7 +74,7 @@ struct StreamInner {
 
 struct ListenerInner {
     iocp: ReadyBinding,
-    accept: State<net::TcpStream, (net::TcpStream, SocketAddr)>,
+    accept: State<net::UnixStream, (net::UnixStream, SocketAddr)>,
     accept_buf: AcceptAddrsBuf,
     instant_notify: bool,
 }
@@ -91,7 +87,7 @@ enum State<T, U> {
 }
 
 impl UnixStream {
-    fn new(socket: net::TcpStream,
+    fn new(socket: net::UnixStream,
            deferred_connect: Option<SocketAddr>) -> UnixStream {
         UnixStream {
             registration: Mutex::new(None),
@@ -112,13 +108,13 @@ impl UnixStream {
         }
     }
 
-    pub fn connect(socket: net::TcpStream, addr: &SocketAddr)
+    pub fn connect(socket: net::UnixStream, addr: &SocketAddr)
                    -> io::Result<UnixStream> {
         socket.set_nonblocking(true)?;
         Ok(UnixStream::new(socket, Some(*addr)))
     }
 
-    pub fn from_stream(stream: net::TcpStream) -> UnixStream {
+    pub fn from_stream(stream: net::UnixStream) -> UnixStream {
         UnixStream::new(stream, None)
     }
 
@@ -136,62 +132,6 @@ impl UnixStream {
 
     pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
         self.imp.inner.socket.shutdown(how)
-    }
-
-    pub fn set_nodelay(&self, nodelay: bool) -> io::Result<()> {
-        self.imp.inner.socket.set_nodelay(nodelay)
-    }
-
-    pub fn nodelay(&self) -> io::Result<bool> {
-        self.imp.inner.socket.nodelay()
-    }
-
-    pub fn set_recv_buffer_size(&self, size: usize) -> io::Result<()> {
-        self.imp.inner.socket.set_recv_buffer_size(size)
-    }
-
-    pub fn recv_buffer_size(&self) -> io::Result<usize> {
-        self.imp.inner.socket.recv_buffer_size()
-    }
-
-    pub fn set_send_buffer_size(&self, size: usize) -> io::Result<()> {
-        self.imp.inner.socket.set_send_buffer_size(size)
-    }
-
-    pub fn send_buffer_size(&self) -> io::Result<usize> {
-        self.imp.inner.socket.send_buffer_size()
-    }
-
-    pub fn set_keepalive(&self, keepalive: Option<Duration>) -> io::Result<()> {
-        self.imp.inner.socket.set_keepalive(keepalive)
-    }
-
-    pub fn keepalive(&self) -> io::Result<Option<Duration>> {
-        self.imp.inner.socket.keepalive()
-    }
-
-    pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
-        self.imp.inner.socket.set_ttl(ttl)
-    }
-
-    pub fn ttl(&self) -> io::Result<u32> {
-        self.imp.inner.socket.ttl()
-    }
-
-    pub fn set_only_v6(&self, only_v6: bool) -> io::Result<()> {
-        self.imp.inner.socket.set_only_v6(only_v6)
-    }
-
-    pub fn only_v6(&self) -> io::Result<bool> {
-        self.imp.inner.socket.only_v6()
-    }
-
-    pub fn set_linger(&self, dur: Option<Duration>) -> io::Result<()> {
-        self.imp.inner.socket.set_linger(dur)
-    }
-
-    pub fn linger(&self) -> io::Result<Option<Duration>> {
-        self.imp.inner.socket.linger()
     }
 
     pub fn take_error(&self) -> io::Result<Option<io::Error>> {
@@ -279,19 +219,6 @@ impl UnixStream {
         match IoVec::from_bytes_mut(buf) {
             Some(vec) => self.readv(&mut [vec]),
             None => Ok(0),
-        }
-    }
-
-    pub fn peek(&self, buf: &mut [u8]) -> io::Result<usize> {
-        let mut me = self.before_read()?;
-
-        match (&self.imp.inner.socket).peek(buf) {
-            Ok(n) => Ok(n),
-            Err(e) => {
-                me.read = State::Empty;
-                self.imp.schedule_read(&mut me);
-                Err(e)
-            }
         }
     }
 
@@ -644,22 +571,17 @@ impl Drop for UnixStream {
 }
 
 impl UnixListener {
-    pub fn new(socket: net::TcpListener)
+    pub fn new(socket: net::UnixListener)
                -> io::Result<UnixListener> {
-        let addr = socket.local_addr()?;
-        Ok(UnixListener::new_family(socket, match addr {
-            SocketAddr::V4(..) => Family::V4,
-            SocketAddr::V6(..) => Family::V6,
-        }))
+        Ok(UnixListener::_new(socket))
     }
 
-    fn new_family(socket: net::TcpListener, family: Family) -> UnixListener {
+    fn _new(socket: net::UnixListener) -> UnixListener {
         UnixListener {
             registration: Mutex::new(None),
             imp: ListenerImp {
                 inner: FromRawArc::new(ListenerIo {
                     accept: Overlapped::new(accept_done),
-                    family: family,
                     socket: socket,
                     inner: Mutex::new(ListenerInner {
                         iocp: ReadyBinding::new(),
@@ -672,7 +594,7 @@ impl UnixListener {
         }
     }
 
-    pub fn accept(&self) -> io::Result<(net::TcpStream, SocketAddr)> {
+    pub fn accept(&self) -> io::Result<(net::UnixStream, SocketAddr)> {
         let mut me = self.inner();
 
         let ret = match mem::replace(&mut me.accept, State::Empty) {
@@ -696,26 +618,8 @@ impl UnixListener {
 
     pub fn try_clone(&self) -> io::Result<UnixListener> {
         self.imp.inner.socket.try_clone().map(|s| {
-            UnixListener::new_family(s, self.imp.inner.family)
+            UnixListener::_new(s)
         })
-    }
-
-    #[allow(deprecated)]
-    pub fn set_only_v6(&self, only_v6: bool) -> io::Result<()> {
-        self.imp.inner.socket.set_only_v6(only_v6)
-    }
-
-    #[allow(deprecated)]
-    pub fn only_v6(&self) -> io::Result<bool> {
-        self.imp.inner.socket.only_v6()
-    }
-
-    pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
-        self.imp.inner.socket.set_ttl(ttl)
-    }
-
-    pub fn ttl(&self) -> io::Result<u32> {
-        self.imp.inner.socket.ttl()
     }
 
     pub fn take_error(&self) -> io::Result<Option<io::Error>> {
@@ -740,14 +644,13 @@ impl ListenerImp {
 
         me.iocp.set_readiness(me.iocp.readiness() - Ready::readable());
 
-        let res = match self.inner.family {
-            Family::V4 => TcpBuilder::new_v4(),
-            Family::V6 => TcpBuilder::new_v6(),
-        }.and_then(|builder| unsafe {
-            trace!("scheduling an accept");
-            self.inner.socket.accept_overlapped(&builder, &mut me.accept_buf,
-                                                self.inner.accept.as_mut_ptr())
-        });
+        let res = net::UnixStream::new()
+            .and_then(|sock| unsafe {
+                trace!("scheduling an accept");
+                self.inner.socket.accept_overlapped(&sock, &mut me.accept_buf,
+                                                    self.inner.accept.as_mut_ptr())
+                }.map(|accepted| (sock, accepted))
+            );
         match res {
             Ok((socket, _)) => {
                 // see docs above on StreamImp.inner for rationale on forget

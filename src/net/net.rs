@@ -91,30 +91,6 @@ impl UnixStream {
         inner(path.as_ref())
     }
 
-    /// Creates an unnamed pair of connected sockets.
-    ///
-    /// Returns two `UnixStream`s which are connected to each other.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use std::os::windows::net::UnixStream;
-    ///
-    /// let (sock1, sock2) = match UnixStream::pair() {
-    ///     Ok((sock1, sock2)) => (sock1, sock2),
-    ///     Err(e) => {
-    ///         println!("Couldn't create a pair of sockets: {:?}", e);
-    ///         return
-    ///     }
-    /// };
-    /// ```
-    // Windows dosn't support socketpair()...this would need to be emulated
-    // pub fn pair() -> io::Result<(UnixStream, UnixStream)> {
-    //     init();
-    //     let (i1, i2) = Socket::new_pair(AF_UNIX, SOCK_STREAM)?;
-    //     Ok((UnixStream(i1), UnixStream(i2)))
-    // }
-
     /// Creates a new independently owned handle to the underlying socket.
     ///
     /// The returned `UnixStream` is a reference to the same stream that this

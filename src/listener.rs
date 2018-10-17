@@ -1,19 +1,13 @@
 use std::fmt;
 use std::io;
-use std::net::{self, SocketAddr};
+use std::path::Path;
 
 use mio::{Evented, Ready, Poll, PollOpt, Token};
-use net2::TcpBuilder;
 
+use net::{self, SocketAddr};
 use poll::SelectorId;
 use stream::UnixStream;
 use sys;
-
-/*
- *
- * ===== UnixListener =====
- *
- */
 
 /// A structure representing a socket server
 ///
@@ -28,7 +22,7 @@ use sys;
 /// use mio_uds_windows::UnixListener;
 /// use std::time::Duration;
 ///
-/// let listener = UnixListener::bind(&"127.0.0.1:34255".parse()?)?;
+/// let listener = UnixListener::bind("/tmp/sock")?;
 ///
 /// let poll = Poll::new()?;
 /// let mut events = Events::with_capacity(128);
@@ -53,53 +47,26 @@ pub struct UnixListener {
 }
 
 impl UnixListener {
-    /// Convenience method to bind a new TCP listener to the specified address
+    /// Convenience method to bind a new `UnixListener` to the specified path
     /// to receive new connections.
     ///
     /// This function will take the following steps:
     ///
-    /// 1. Create a new TCP socket.
-    /// 2. Set the `SO_REUSEADDR` option on the socket.
-    /// 3. Bind the socket to the specified address.
-    /// 4. Call `listen` on the socket to prepare it to receive new connections.
+    /// 1. Create a new Unix domain socket.
+    /// 2. Bind the socket to the specified path.
+    /// 3. Call `listen` on the socket to prepare it to receive new connections.
     ///
     /// If fine-grained control over the binding and listening process for a
-    /// socket is desired then the `net2::TcpBuilder` methods can be used in
-    /// combination with the `UnixListener::from_listener` method to transfer
-    /// ownership into mio.
-    pub fn bind(addr: &SocketAddr) -> io::Result<UnixListener> {
-        // Create the socket
-        let sock = match *addr {
-            SocketAddr::V4(..) => TcpBuilder::new_v4(),
-            SocketAddr::V6(..) => TcpBuilder::new_v6(),
-        }?;
-
-        // Set SO_REUSEADDR, but only on Unix (mirrors what libstd does)
-        if cfg!(unix) {
-            sock.reuse_address(true)?;
-        }
-
-        // Bind the socket
-        sock.bind(addr)?;
-
-        // listen
-        let listener = sock.listen(1024)?;
-        Ok(UnixListener {
-            sys: sys::UnixListener::new(listener)?,
-            selector_id: SelectorId::new(),
-        })
-    }
-
-    #[deprecated(since = "0.6.13", note = "use from_std instead")]
-    #[cfg(feature = "with-deprecated")]
-    #[doc(hidden)]
-    pub fn from_listener(listener: net::TcpListener, _: &SocketAddr)
-                         -> io::Result<UnixListener> {
-        UnixListener::from_std(listener)
+    /// socket is desired, create an instance of `net::UnixListener` (possibly
+    /// via an instance of `net::Socket`) and use the `UnixListener::from_std`
+    /// method to transfer it into mio.
+    pub fn bind<P: AsRef<Path>>(path: P) -> io::Result<UnixListener> {
+        let sock = net::UnixListener::bind(path)?;
+        UnixListener::from_std(sock)
     }
 
     /// Creates a new `UnixListener` from an instance of a
-    /// `std::net::TcpListener` type.
+    /// `net::UnixListener` type.
     ///
     /// This function will set the `listener` provided into nonblocking mode on
     /// Unix, and otherwise the stream will just be wrapped up in an mio stream
@@ -107,7 +74,7 @@ impl UnixListener {
     /// loop.
     ///
     /// The address provided must be the address that the listener is bound to.
-    pub fn from_std(listener: net::TcpListener) -> io::Result<UnixListener> {
+    pub fn from_std(listener: net::UnixListener) -> io::Result<UnixListener> {
         sys::UnixListener::new(listener).map(|s| {
             UnixListener {
                 sys: s,
@@ -130,12 +97,12 @@ impl UnixListener {
         Ok((UnixStream::from_stream(s)?, a))
     }
 
-    /// Accepts a new `std::net::TcpStream`.
+    /// Accepts a new `net::UnixStream`.
     ///
-    /// This method is the same as `accept`, except that it returns a TCP socket
+    /// This method is the same as `accept`, except that it returns a socket
     /// *in blocking mode* which isn't bound to `mio`. This can be later then
     /// converted to a `mio` type, if necessary.
-    pub fn accept_std(&self) -> io::Result<(net::TcpStream, SocketAddr)> {
+    pub fn accept_std(&self) -> io::Result<(net::UnixStream, SocketAddr)> {
         self.sys.accept()
     }
 
@@ -156,44 +123,6 @@ impl UnixListener {
                 selector_id: self.selector_id.clone(),
             }
         })
-    }
-
-    /// Sets the value for the `IP_TTL` option on this socket.
-    ///
-    /// This value sets the time-to-live field that is used in every packet sent
-    /// from this socket.
-    pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
-        self.sys.set_ttl(ttl)
-    }
-
-    /// Gets the value of the `IP_TTL` option for this socket.
-    ///
-    /// For more information about this option, see [`set_ttl`][link].
-    ///
-    /// [link]: #method.set_ttl
-    pub fn ttl(&self) -> io::Result<u32> {
-        self.sys.ttl()
-    }
-
-    /// Sets the value for the `IPV6_V6ONLY` option on this socket.
-    ///
-    /// If this is set to `true` then the socket is restricted to sending and
-    /// receiving IPv6 packets only. In this case two IPv4 and IPv6 applications
-    /// can bind the same port at the same time.
-    ///
-    /// If this is set to `false` then the socket can be used to send and
-    /// receive packets from an IPv4-mapped IPv6 address.
-    pub fn set_only_v6(&self, only_v6: bool) -> io::Result<()> {
-        self.sys.set_only_v6(only_v6)
-    }
-
-    /// Gets the value of the `IPV6_V6ONLY` option for this socket.
-    ///
-    /// For more information about this option, see [`set_only_v6`][link].
-    ///
-    /// [link]: #method.set_only_v6
-    pub fn only_v6(&self) -> io::Result<bool> {
-        self.sys.only_v6()
     }
 
     /// Get the value of the `SO_ERROR` option on this socket.

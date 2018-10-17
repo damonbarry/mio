@@ -4,6 +4,7 @@ use mio::event::Event;
 use std::sync::mpsc::TryRecvError;
 use std::thread;
 use std::time::Duration;
+use tempdir::TempDir;
 
 #[test]
 pub fn test_poll_channel_edge() {
@@ -214,14 +215,16 @@ pub fn test_dropping_receive_before_poll() {
 
 #[test]
 pub fn test_mixing_channel_with_socket() {
-    use mio::net::{TcpListener, TcpStream};
+    use mio_uds_windows::{UnixListener, UnixStream};
 
     let poll = Poll::new().unwrap();
     let mut events = Events::with_capacity(1024);
     let (tx, rx) = channel::channel();
+    let dir = TempDir::new("uds").unwrap();
 
     // Create the listener
-    let l = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l.local_addr().unwrap();
 
     // Register the listener with `Poll`
     poll.register(&l, Token(0), Ready::readable(), PollOpt::edge()).unwrap();
@@ -231,7 +234,7 @@ pub fn test_mixing_channel_with_socket() {
     tx.send("hello").unwrap();
 
     // Connect a TCP socket
-    let s1 = TcpStream::connect(&l.local_addr().unwrap()).unwrap();
+    let s1 = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     // Register the socket
     poll.register(&s1, Token(2), Ready::readable(), PollOpt::edge()).unwrap();

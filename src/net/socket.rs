@@ -47,6 +47,7 @@ pub const SD_RECEIVE: c_int = 0x00;
 pub const SD_SEND: c_int = 0x01;
 pub const SD_BOTH: c_int = 0x02;
 
+#[derive(Debug)]
 pub struct Socket(SOCKET);
 
 /// Checks whether the Windows socket interface has been started already, and

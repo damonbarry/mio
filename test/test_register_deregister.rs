@@ -1,21 +1,22 @@
-use {expect_events, localhost, TryWrite};
+use {expect_events, TryWrite};
 use mio::{Events, Poll, PollOpt, Ready, Token};
 use mio::event::Event;
-use mio::net::{TcpListener, TcpStream};
+use mio_uds_windows::{UnixListener, UnixStream};
 use bytes::SliceBuf;
 use std::time::Duration;
+use tempdir::TempDir;
 
 const SERVER: Token = Token(0);
 const CLIENT: Token = Token(1);
 
 struct TestHandler {
-    server: TcpListener,
-    client: TcpStream,
+    server: UnixListener,
+    client: UnixStream,
     state: usize,
 }
 
 impl TestHandler {
-    fn new(srv: TcpListener, cli: TcpStream) -> TestHandler {
+    fn new(srv: UnixListener, cli: UnixStream) -> TestHandler {
         TestHandler {
             server: srv,
             client: cli,
@@ -59,15 +60,15 @@ pub fn test_register_deregister() {
     debug!("Starting TEST_REGISTER_DEREGISTER");
     let mut poll = Poll::new().unwrap();
     let mut events = Events::with_capacity(1024);
+    let dir = TempDir::new("uds").unwrap();
 
-    let addr = localhost();
-
-    let server = TcpListener::bind(&addr).unwrap();
+    let server = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = server.local_addr().unwrap();
 
     info!("register server socket");
     poll.register(&server, SERVER, Ready::readable(), PollOpt::edge()).unwrap();
 
-    let client = TcpStream::connect(&addr).unwrap();
+    let client = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     // Register client socket only as writable
     poll.register(&client, CLIENT, Ready::readable(), PollOpt::level()).unwrap();
@@ -97,13 +98,14 @@ pub fn test_register_deregister() {
 pub fn test_register_empty_interest() {
     let poll = Poll::new().unwrap();
     let mut events = Events::with_capacity(1024);
-    let addr = localhost();
+    let dir = TempDir::new("uds").unwrap();
 
-    let sock = TcpListener::bind(&addr).unwrap();
+    let sock = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = sock.local_addr().unwrap();
 
     poll.register(&sock, Token(0), Ready::empty(), PollOpt::edge()).unwrap();
 
-    let client = TcpStream::connect(&addr).unwrap();
+    let client = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
 
     // The connect is not guaranteed to have started until it is registered
     // https://docs.rs/mio/0.6.10/mio/struct.Poll.html#registering-handles

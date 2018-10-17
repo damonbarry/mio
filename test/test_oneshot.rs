@@ -1,7 +1,8 @@
 use mio::*;
-use mio::net::{TcpListener, TcpStream};
+use mio_uds_windows::{UnixListener, UnixStream};
 use std::io::*;
 use std::time::Duration;
+use tempdir::TempDir;
 
 const MS: u64 = 1_000;
 
@@ -11,15 +12,17 @@ pub fn test_tcp_edge_oneshot() {
 
     let mut poll = Poll::new().unwrap();
     let mut events = Events::with_capacity(1024);
+    let dir = TempDir::new("uds").unwrap();
 
     // Create the listener
-    let l = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l.local_addr().unwrap();
 
     // Register the listener with `Poll`
     poll.register(&l, Token(0), Ready::readable(), PollOpt::level()).unwrap();
 
     // Connect a socket, we are going to write to it
-    let mut s1 = TcpStream::connect(&l.local_addr().unwrap()).unwrap();
+    let mut s1 = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
     poll.register(&s1, Token(1), Ready::writable(), PollOpt::level()).unwrap();
 
     wait_for(&mut poll, &mut events, Token(0));

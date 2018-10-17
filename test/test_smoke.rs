@@ -1,8 +1,9 @@
 extern crate mio;
 
 use mio::{Events, Poll, Token, Ready, PollOpt};
-use mio::net::TcpListener;
+use mio_uds_windows::UnixListener;
 use std::time::Duration;
+use tempdir::TempDir;
 
 #[test]
 fn run_once_with_nothing() {
@@ -14,7 +15,8 @@ fn run_once_with_nothing() {
 #[test]
 fn add_then_drop() {
     let mut events = Events::with_capacity(1024);
-    let l = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let dir = TempDir::new("uds").unwrap();
+    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
     let poll = Poll::new().unwrap();
     poll.register(&l, Token(1), Ready::readable() | Ready::writable(), PollOpt::edge()).unwrap();
     drop(l);

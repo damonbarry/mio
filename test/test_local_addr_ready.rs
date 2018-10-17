@@ -1,29 +1,31 @@
 use {TryWrite};
 use mio::{Events, Poll, PollOpt, Ready, Token};
-use mio::net::{TcpListener, TcpStream};
+use mio_uds_windows::{UnixListener, UnixStream};
+use tempdir::TempDir;
 
 const LISTEN: Token = Token(0);
 const CLIENT: Token = Token(1);
 const SERVER: Token = Token(2);
 
 struct MyHandler {
-    listener: TcpListener,
-    connected: TcpStream,
-    accepted: Option<TcpStream>,
+    listener: UnixListener,
+    connected: UnixStream,
+    accepted: Option<UnixStream>,
     shutdown: bool,
 }
 
 #[test]
 fn local_addr_ready() {
-    let addr = "127.0.0.1:0".parse().unwrap();
-    let server = TcpListener::bind(&addr).unwrap();
+    let dir = TempDir::new("uds").unwrap();
+
+    let server = UnixListener::bind(dir.path().join("foo")).unwrap();
     let addr = server.local_addr().unwrap();
 
     let poll = Poll::new().unwrap();
     poll.register(&server, LISTEN, Ready::readable(),
                         PollOpt::edge()).unwrap();
 
-    let sock = TcpStream::connect(&addr).unwrap();
+    let sock = UnixStream::connect(&addr.as_pathname().unwrap()).unwrap();
     poll.register(&sock, CLIENT, Ready::readable(),
                         PollOpt::edge()).unwrap();
 

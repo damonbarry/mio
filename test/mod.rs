@@ -3,6 +3,7 @@
 extern crate mio;
 extern crate bytes;
 extern crate net2;
+extern crate mio_uds_windows;
 
 #[macro_use]
 extern crate log;

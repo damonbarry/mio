@@ -52,10 +52,8 @@
 //! const SERVER: Token = Token(0);
 //! const CLIENT: Token = Token(1);
 //!
-//! let addr = "127.0.0.1:13265".parse().unwrap();
-//!
 //! // Setup the server socket
-//! let server = UnixListener::bind(&addr).unwrap();
+//! let server = UnixListener::bind("/tmp/sock").unwrap();
 //!
 //! // Create a poll instance
 //! let poll = Poll::new().unwrap();
@@ -118,13 +116,14 @@ extern crate kernel32;
 extern crate log;
 
 mod listener;
-mod net;
 mod poll;
 mod stream;
 mod sys;
 
+#[allow(missing_docs)]
+pub mod net;
+
 pub use listener::UnixListener;
-pub use net::{AcceptAddrs, AcceptAddrsBuf, UnixListenerExt, UnixStreamExt};
 pub use stream::UnixStream;
 
 /// Windows-only extensions to the mio crate.

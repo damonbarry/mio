@@ -90,7 +90,7 @@
 //! When the main event loop receives a notification that an I/O operation has
 //! completed, some work needs to be done to translate that to a set of events
 //! or perhaps some more I/O needs to be scheduled. For example after a
-//! `TcpStream` is connected it generates a writable event and also schedules a
+//! `UnixStream` is connected it generates a writable event and also schedules a
 //! read.
 //!
 //! To manage all this the `Selector` uses the `OVERLAPPED` pointer from the
@@ -124,7 +124,7 @@
 //!   This should be solved by likely having a global `Selector` which all
 //!   others then communicate with.
 //! * Although Unix sockets don't exist on Windows, there are named pipes and
-//!   those should likely be bound here in a similar fashion to `TcpStream`.
+//!   those should likely be bound here in a similar fashion to `UnixStream`.
 //!
 //! Next up, there are a few performance improvements and optimizations that can
 //! still be implemented
@@ -150,11 +150,6 @@ mod buffer_pool;
 
 pub use self::selector::{Events, Selector, Overlapped, Binding};
 pub use self::uds::{UnixStream, UnixListener};
-
-#[derive(Copy, Clone)]
-enum Family {
-    V4, V6,
-}
 
 unsafe fn cancel(socket: &AsRawSocket,
                  overlapped: &Overlapped) -> io::Result<()> {
