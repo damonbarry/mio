@@ -23,8 +23,8 @@ mod test_register_deregister;
 mod test_register_multiple_event_loops;
 mod test_reregister_without_poll;
 mod test_smoke;
-mod test_tcp;
-mod test_tcp_level;
+mod test_uds;
+mod test_uds_level;
 mod test_write_then_drop;
 
 use bytes::{Buf, MutBuf};

@@ -7,7 +7,7 @@ use tempdir::TempDir;
 const MS: u64 = 1_000;
 
 #[test]
-pub fn test_tcp_edge_oneshot() {
+pub fn test_uds_edge_oneshot() {
     let _ = ::env_logger::init();
 
     let mut poll = Poll::new().unwrap();

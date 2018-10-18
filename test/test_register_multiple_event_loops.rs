@@ -4,7 +4,7 @@ use std::io::ErrorKind;
 use tempdir::TempDir;
 
 #[test]
-fn test_tcp_register_multiple_event_loops() {
+fn test_uds_register_multiple_event_loops() {
     let dir = TempDir::new("uds").unwrap();
     let listener = UnixListener::bind(dir.path().join("foo")).unwrap();
     let addr = listener.local_addr().unwrap();

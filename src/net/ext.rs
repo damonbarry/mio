@@ -29,7 +29,7 @@ use super::net::{UnixListener, UnixStream};
 /// stored.
 ///
 /// This type is used with the `accept_overlapped` method on the
-/// `TcpListenerExt` trait to provide space for the overlapped I/O operation to
+/// `UnixListenerExt` trait to provide space for the overlapped I/O operation to
 /// fill in the socket addresses upon completion.
 #[allow(missing_debug_implementations)]
 #[repr(C)]

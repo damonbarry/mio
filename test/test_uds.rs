@@ -390,7 +390,7 @@ fn assert_sync<T: Sync>() {
 }
 
 #[test]
-fn test_tcp_sockets_are_send() {
+fn test_uds_sockets_are_send() {
     assert_send::<UnixListener>();
     assert_send::<UnixStream>();
     assert_sync::<UnixListener>();

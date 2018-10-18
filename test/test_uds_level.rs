@@ -9,7 +9,7 @@ use tempdir::TempDir;
 const MS: u64 = 1_000;
 
 #[test]
-pub fn test_tcp_listener_level_triggered() {
+pub fn test_uds_listener_level_triggered() {
     let poll = Poll::new().unwrap();
     let mut pevents = Events::with_capacity(1024);
     let dir = TempDir::new("uds").unwrap();
@@ -63,7 +63,7 @@ pub fn test_tcp_listener_level_triggered() {
 }
 
 #[test]
-pub fn test_tcp_stream_level_triggered() {
+pub fn test_uds_stream_level_triggered() {
     drop(::env_logger::init());
     let poll = Poll::new().unwrap();
     let mut pevents = Events::with_capacity(1024);

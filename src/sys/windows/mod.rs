@@ -62,7 +62,7 @@
 //! operations preemptively and then translate their completions to a "I'm
 //! ready" event.
 //!
-//! For example, in the case of reading a `TcpSocket`, as soon as a socket is
+//! For example, in the case of reading a `UnixSocket`, as soon as a socket is
 //! connected (or registered after an accept) a read operation is executed.
 //! While the read is in progress calls to `read` will return `WouldBlock`, and
 //! once the read is completed we translate the completion notification into a
