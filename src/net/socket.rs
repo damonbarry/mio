@@ -20,26 +20,14 @@ use std::sync::Once;
 
 use super::{cvt, last_error};
 
-use kernel32::*;
-use winapi::*;
+use kernel32::{GetCurrentProcessId, SetHandleInformation};
+use winapi::{socklen_t, AF_UNIX, DWORD, FIONBIO, HANDLE, INVALID_SOCKET,
+    SO_ERROR, SOCK_STREAM, SOCKADDR, SOCKET, SOL_SOCKET, WSADATA,
+    WSAPROTOCOL_INFOW};
+// use winapi::WSACleanup;
 use ws2_32::getsockopt as c_getsockopt;
-use ws2_32::*;
-// use winapi::{
-//     shared::ntdef::HANDLE,
-//     shared::ws2def::{AF_UNIX, SOCKADDR, SOCK_STREAM, SO_ERROR, SOL_SOCKET},
-//     um::handleapi::SetHandleInformation,
-//     um::processthreadsapi::GetCurrentProcessId,
-//     um::winbase::HANDLE_FLAG_INHERIT,
-//     um::winsock2::{
-//         accept, closesocket, getsockopt as c_getsockopt, ioctlsocket, recv, send, shutdown as c_shutdown,
-//         WSAStartup, WSADuplicateSocketW, WSASocketW,
-//         FIONBIO, SD_BOTH, SD_RECEIVE, SD_SEND,
-//         INVALID_SOCKET, SOCKET, WSADATA, WSAPROTOCOL_INFOW, WSA_FLAG_OVERLAPPED,
-//     },
-//     um::ws2tcpip::socklen_t
-// };
-
-// use winapi::um::winsock2::WSACleanup;
+use ws2_32::{accept, closesocket, ioctlsocket, recv, send, shutdown,
+    WSADuplicateSocketW, WSASocketW, WSAStartup};
 
 pub const WSA_FLAG_OVERLAPPED: DWORD = 0x01;
 pub const HANDLE_FLAG_INHERIT: DWORD = 0x01;

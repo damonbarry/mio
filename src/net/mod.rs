@@ -5,7 +5,7 @@ use std::mem;
 use std::path::Path;
 use std::os::raw::{c_char, c_int};
 
-use winapi::*;
+use winapi::SOCKADDR;
 use ws2_32::WSAGetLastError;
 
 mod ext;
@@ -16,11 +16,6 @@ mod c {
     use std::ffi::CStr;
     use std::fmt;
     use winapi::{self, ADDRESS_FAMILY, CHAR};
-    // use winapi::CHAR;
-    // use winapi::shared::ws2def::{self};
-    // pub use winapi::shared::ws2def::{
-    //     SOCKADDR as sockaddr, ADDRESS_FAMILY as sa_family_t
-    // };
 
     pub const AF_UNIX: ADDRESS_FAMILY = winapi::AF_UNIX as _;
 

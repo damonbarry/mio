@@ -10,17 +10,12 @@ use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use std::os::windows::prelude::*;
 
 use iovec::IoVec;
-use winapi::*;
-use ws2_32::*;
-// use winapi::ctypes::*;
-// use winapi::shared::guiddef::*;
-// use winapi::shared::minwindef::*;
-// use winapi::shared::minwindef::{FALSE, TRUE};
-// use winapi::shared::ntdef::*;
-// use winapi::shared::ws2def::*;
-// use winapi::shared::ws2def::SOL_SOCKET;
-// use winapi::um::minwinbase::*;
-// use winapi::um::winsock2::*;
+use winapi::{c_int, u_long, BOOL, DWORD, FALSE, GUID, LPDWORD, LPINT, 
+    LPOVERLAPPED, LPSOCKADDR, OVERLAPPED, PVOID,
+    SIO_GET_EXTENSION_FUNCTION_POINTER, SOCKADDR, SOCKADDR_STORAGE, SOCKET,
+    SOCKET_ERROR, SOL_SOCKET, TRUE, WSA_IO_PENDING, WSABUF};
+use ws2_32::{bind, setsockopt, WSAGetLastError, WSAGetOverlappedResult,
+    WSAIoctl, WSARecv, WSASend};
 
 use super::{c, sun_path_offset, SocketAddr};
 use super::net::{UnixListener, UnixStream};
