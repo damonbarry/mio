@@ -141,14 +141,13 @@ use std::os::windows::prelude::*;
 
 use kernel32;
 use winapi;
+use mio::windows::Overlapped;
 
 #[macro_use]
 mod selector;
 mod uds;
 mod from_raw_arc;
-mod buffer_pool;
 
-pub use self::selector::{Events, Selector, Overlapped, Binding};
 pub use self::uds::{UnixStream, UnixListener};
 
 unsafe fn cancel(socket: &AsRawSocket,

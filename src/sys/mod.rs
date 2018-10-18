@@ -1,11 +1,7 @@
 #[cfg(windows)]
 pub use self::windows::{
-    Events,
-    Selector,
     UnixStream,
     UnixListener,
-    Overlapped,
-    Binding,
 };
 
 #[cfg(windows)]

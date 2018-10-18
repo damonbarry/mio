@@ -6,13 +6,14 @@ use std::os::windows::prelude::*;
 use std::sync::{Mutex, MutexGuard};
 
 use mio::{Evented, Ready, Registration, Poll, PollOpt, Token};
+use mio::windows::Overlapped;
 use miow::iocp::CompletionStatus;
 use winapi::*;
 use iovec::IoVec;
 
 use net::{self, AcceptAddrsBuf, SocketAddr, UnixListenerExt, UnixStreamExt};
 use sys::windows::from_raw_arc::FromRawArc;
-use sys::windows::selector::{Overlapped, ReadyBinding};
+use sys::windows::selector::ReadyBinding;
 
 pub struct UnixStream {
     /// Separately stored implementation to ensure that the `Drop`
