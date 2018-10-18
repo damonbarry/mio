@@ -51,8 +51,8 @@ fn connect() {
     struct H { hit: u32, shutdown: bool }
     let dir = TempDir::new("uds").unwrap();
 
-    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
-    let addr = l.local_addr().unwrap();;
+    let l = net::UnixListener::bind(dir.path().join("foo")).unwrap();
+    let addr = l.local_addr().unwrap();
 
     let (tx, rx) = channel();
     let (tx2, rx2) = channel();
@@ -113,7 +113,7 @@ fn read() {
     struct H { amt: usize, socket: UnixStream, shutdown: bool }
     let dir = TempDir::new("uds").unwrap();
 
-    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let l = net::UnixListener::bind(dir.path().join("foo")).unwrap();
     let addr = l.local_addr().unwrap();;
 
     let t = thread::spawn(move || {
@@ -160,7 +160,7 @@ fn read_bufs() {
     const N: usize = 16 * 1024 * 1024;
     let dir = TempDir::new("uds").unwrap();
 
-    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let l = net::UnixListener::bind(dir.path().join("foo")).unwrap();
     let addr = l.local_addr().unwrap();;
 
     let t = thread::spawn(move || {
@@ -234,7 +234,7 @@ fn write() {
     struct H { amt: usize, socket: UnixStream, shutdown: bool }
     let dir = TempDir::new("uds").unwrap();
 
-    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let l = net::UnixListener::bind(dir.path().join("foo")).unwrap();
     let addr = l.local_addr().unwrap();;
 
     let t = thread::spawn(move || {
@@ -281,7 +281,7 @@ fn write_bufs() {
     const N: usize = 16 * 1024 * 1024;
     let dir = TempDir::new("uds").unwrap();
 
-    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let l = net::UnixListener::bind(dir.path().join("foo")).unwrap();
     let addr = l.local_addr().unwrap();;
 
     let t = thread::spawn(move || {
@@ -409,7 +409,7 @@ fn bind_twice_bad() {
 fn multiple_writes_immediate_success() {
     const N: usize = 16;
     let dir = TempDir::new("uds").unwrap();
-    let l = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let l = net::UnixListener::bind(dir.path().join("foo")).unwrap();
     let addr = l.local_addr().unwrap();;
 
     let t = thread::spawn(move || {
@@ -433,7 +433,7 @@ fn multiple_writes_immediate_success() {
     poll.register(&s, Token(1), Ready::writable(), PollOpt::level()).unwrap();
     let mut events = Events::with_capacity(16);
 
-    // Wait for our TCP stream to connect
+    // Wait for our UDS stream to connect
     'outer: loop {
         poll.poll(&mut events, None).unwrap();
         for event in events.iter() {
@@ -526,34 +526,19 @@ fn connection_reset_by_peer() {
 #[test]
 fn connect_error() {
     let poll = Poll::new().unwrap();
-    let mut events = Events::with_capacity(16);
     let dir = TempDir::new("uds").unwrap();
 
-    let l = match UnixStream::connect(&dir.path().join("foo")) {
-        Ok(l) => l,
-        Err(ref e) if e.kind() == io::ErrorKind::ConnectionRefused => {
-            // Connection failed synchronously.  This is not a bug, but it
-            // unfortunately doesn't get us the code coverage we want.
-            return;
-        },
-        Err(e) => panic!("UnixStream::connect unexpected error {:?}", e)
-    };
+    // This test is structured differently from the test
+    // 'test_tcp::connect_error' in the mio codebase because
+    // UnixStream::connect() seems to behave differently from
+    // TcpStream::connect() in this case. Specifically, an error
+    // with kind == io::ErrorKind::ConnectionRefused is returned
+    // from poll.register() rather than poll.poll(). Is that ok?
 
-    poll.register(&l, Token(0), Ready::writable(), PollOpt::edge()).unwrap();
-
-    'outer:
-    loop {
-        poll.poll(&mut events, None).unwrap();
-
-        for event in &events {
-            if event.token() == Token(0) {
-                assert!(event.readiness().is_writable());
-                break 'outer
-            }
-        }
-    }
-
-    assert!(l.take_error().unwrap().is_some());
+    let l = UnixStream::connect(&dir.path().join("foo")).unwrap();
+    let e = poll.register(&l, Token(0), Ready::writable(), PollOpt::edge());
+    assert!(e.is_err());
+    assert_eq!(e.err().unwrap().kind(), io::ErrorKind::ConnectionRefused);
 }
 
 #[test]
@@ -563,7 +548,7 @@ fn write_error() {
     let (tx, rx) = channel();
     let dir = TempDir::new("uds").unwrap();
 
-    let listener = UnixListener::bind(dir.path().join("foo")).unwrap();
+    let listener = net::UnixListener::bind(dir.path().join("foo")).unwrap();
     let addr = listener.local_addr().unwrap();;
     let t = thread::spawn(move || {
         let (conn, _addr) = listener.accept().unwrap();

@@ -16,13 +16,19 @@ use sys;
 /// ```
 /// # extern crate mio;
 /// # extern crate mio_uds_windows;
+/// # extern crate tempdir;
 /// # use std::error::Error;
+/// # use tempdir::TempDir;
+/// #
 /// # fn try_main() -> Result<(), Box<Error>> {
 /// use mio::{Events, Ready, Poll, PollOpt, Token};
 /// use mio_uds_windows::UnixListener;
 /// use std::time::Duration;
 ///
-/// let listener = UnixListener::bind("/tmp/sock")?;
+/// let path = "/tmp/sock";
+/// # let path = TempDir::new("uds").unwrap();
+/// # let path = path.path().join("sock");
+/// let listener = UnixListener::bind(&path)?;
 ///
 /// let poll = Poll::new()?;
 /// let mut events = Events::with_capacity(128);

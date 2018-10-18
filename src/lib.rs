@@ -44,6 +44,8 @@
 //! ```
 //! # extern crate mio;
 //! # extern crate mio_uds_windows;
+//! # extern crate tempdir;
+//! # use tempdir::TempDir;
 //! use mio::*;
 //! use mio_uds_windows::{UnixListener, UnixStream};
 //!
@@ -51,9 +53,13 @@
 //! // for which socket.
 //! const SERVER: Token = Token(0);
 //! const CLIENT: Token = Token(1);
+//! 
+//! let path = "/tmp/sock";
+//! # let path = TempDir::new("uds").unwrap();
+//! # let path = path.path().join("sock");
 //!
 //! // Setup the server socket
-//! let server = UnixListener::bind("/tmp/sock").unwrap();
+//! let server = UnixListener::bind(&path).unwrap();
 //!
 //! // Create a poll instance
 //! let poll = Poll::new().unwrap();
@@ -63,7 +69,7 @@
 //!               PollOpt::edge()).unwrap();
 //!
 //! // Setup the client socket
-//! let sock = UnixStream::connect(&addr).unwrap();
+//! let sock = UnixStream::connect(&path).unwrap();
 //!
 //! // Register the socket
 //! poll.register(&sock, CLIENT, Ready::readable(),

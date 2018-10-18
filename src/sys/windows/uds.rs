@@ -334,7 +334,7 @@ impl StreamImp {
     /// Schedule a read to happen on this socket, enqueuing us to receive a
     /// notification when a read is ready.
     ///
-    /// Note that this does *not* work with a buffer. When reading a TCP stream
+    /// Note that this does *not* work with a buffer. When reading a stream
     /// we actually read into a 0-byte buffer so Windows will send us a
     /// notification when the socket is otherwise ready for reading. This allows
     /// us to avoid buffer allocations for in-flight reads.
@@ -561,7 +561,7 @@ impl Drop for UnixStream {
         unsafe {
             match self.inner().read {
                 State::Pending(_) | State::Empty => {
-                    trace!("cancelling active TCP read");
+                    trace!("cancelling active UDS read");
                     drop(super::cancel(&self.imp.inner.socket,
                                        &self.imp.inner.read));
                 }
@@ -741,7 +741,7 @@ impl Drop for UnixListener {
         unsafe {
             match self.inner().accept {
                 State::Pending(_) => {
-                    trace!("cancelling active TCP accept");
+                    trace!("cancelling active UDS accept");
                     drop(super::cancel(&self.imp.inner.socket,
                                        &self.imp.inner.accept));
                 }

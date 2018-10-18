@@ -10,7 +10,7 @@ use net::{self, SocketAddr};
 use poll::SelectorId;
 use sys;
 
-/// A non-blocking TCP stream between a local socket and a remote socket.
+/// A non-blocking stream on a Unix domain socket.
 ///
 /// The socket will be closed when the value is dropped.
 ///
@@ -19,16 +19,21 @@ use sys;
 /// ```
 /// # extern crate mio;
 /// # extern crate mio_uds_windows;
-/// # use net::UnixListener;
+/// # extern crate tempdir;
+/// # use mio_uds_windows::UnixListener;
 /// # use std::error::Error;
+/// # use tempdir::TempDir;
 /// #
 /// # fn try_main() -> Result<(), Box<Error>> {
-/// # let _listener = UnixListener::bind("/tmp/sock")?;
+/// let path = "/tmp/sock";
+/// # let path = TempDir::new("uds").unwrap();
+/// # let path = path.path().join("sock");
+/// # let _listener = UnixListener::bind(&path)?;
 /// use mio::{Events, Ready, Poll, PollOpt, Token};
 /// use mio_uds_windows::UnixStream;
 /// use std::time::Duration;
 ///
-/// let stream = UnixStream::connect("/tmp/sock".parse()?)?;
+/// let stream = UnixStream::connect(&path)?;
 ///
 /// let poll = Poll::new()?;
 /// let mut events = Events::with_capacity(128);

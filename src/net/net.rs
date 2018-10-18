@@ -55,6 +55,7 @@ impl fmt::Debug for UnixStream {
 
 impl UnixStream {
     pub fn new() -> io::Result<UnixStream> {
+        init();
         let sock = Socket::new()?;
         let sock = unsafe {
             UnixStream::from_raw_socket(sock.into_raw_socket())
