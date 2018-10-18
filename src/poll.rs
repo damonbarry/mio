@@ -18,6 +18,19 @@ pub fn new_registration(poll: &Poll, token: Token, ready: Ready, opt: PollOpt)
     Registration::new(poll, token, ready, opt)
 }
 
+// The skinny module duplicates the minimal set of necessary mio types that
+// allow the I/O objects in this crate (UnixListener, UnixStream) to fully
+// integrate with the Binding and Overlapped types provided by mio::windows.
+// The skinny accessor functions transmute the mio::windows structures into
+// local structures with an identical memory layout to gain access to internals.
+// For example, when UnixStream::write_bufs needs to use the same scatter/gather
+// buffer logic that TcpStream uses (but which is hidden inside Binding), it
+// uses skinny::get/put_buffer(binding). When UnixStream and UnixListener need
+// to verify that a Poll object isn't already registered to a different socket,
+// they use skinny::selector_id(poll).
+// The transmute is obviously dangerous, but the alternative is to build up
+// structures and logic that already exist within Binding and Overlapped (esp.
+// Binding).
 pub mod skinny {
     use std::mem;
     use mio;
@@ -59,6 +72,13 @@ pub mod skinny {
             inner: Arc<SelectorInner>,
         }
 
+        impl Selector {
+            /// Return the `Selector`'s identifier
+            pub fn id(&self) -> usize {
+                self.inner.id
+            }
+        }
+
         #[allow(dead_code)]
         struct SelectorInner {
             /// Unique identifier of the `Selector`
@@ -72,13 +92,6 @@ pub mod skinny {
             /// Primitives will take buffers from this pool to perform I/O operations,
             /// and once complete they'll be put back in.
             buffers: Mutex<BufferPool>,
-        }
-
-        impl Selector {
-            /// Return the `Selector`'s identifier
-            pub fn id(&self) -> usize {
-                self.inner.id
-            }
         }
 
         fn as_binding(binding: &MiowBinding) -> &Binding {
